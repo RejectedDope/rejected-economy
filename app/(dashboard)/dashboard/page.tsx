@@ -13,6 +13,7 @@ import {
 import { MOCK_ITEMS } from "@/lib/mock-data";
 import { scoreAll, calcDashboardStats, buildRecoveryPlan } from "@/lib/scoring";
 import { AgingChart } from "@/components/dashboard/AgingChart";
+import { PlatformChart } from "@/components/dashboard/PlatformChart";
 import { InsightCards } from "@/components/dashboard/InsightCards";
 import { DeathPileTable } from "@/components/dashboard/DeathPileTable";
 import { formatCurrency } from "@/lib/utils";
@@ -209,9 +210,14 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Aging Chart + Insight Cards ───────────────────────────────────── */}
+        {/* ── Aging Chart + Platform Breakdown ─────────────────────────────── */}
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <AgingChart buckets={stats.aging_breakdown} />
+          <PlatformChart buckets={stats.platform_breakdown} />
+        </div>
+
+        {/* ── Insight Cards ─────────────────────────────────────────────────── */}
+        <div className="mt-6">
           <InsightCards stats={stats} items={scored} />
         </div>
 

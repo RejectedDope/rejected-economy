@@ -283,7 +283,9 @@ export function calcRecoveryProbability(
 
   const lifts: Record<RecoveryAction, number> = {
     relist_now:          35, // fresh impressions clock — biggest single lift
+    sell_similar:        28, // new listing copy, original stays active
     optimize_specifics:  25, // enters filtered search immediately
+    title_rewrite:       22, // better keyword coverage = more impressions
     strategic_markdown:  20, // triggers watcher notifications
     add_photos:          15, // improves CTR but slower to show
     move_platform:       20, // new audience, different sell-through pool
@@ -615,6 +617,49 @@ const GUIDANCE_MAP: GuidanceMap = {
       estimated_time_to_outcome: "3–10 days post-update",
     }),
 
+    sell_similar: (item) => ({
+      platform: "eBay",
+      action: "sell_similar",
+      title: "Use Sell Similar — Fresh Impressions, Zero Effort",
+      overview: "eBay's 'Sell Similar' creates a new active listing using your existing one as a template. The original stays live. The new listing gets a fresh impressions clock and surfaces in 'newest first' search. This is the lowest-effort freshness reset available — no data loss, no relist hassle.",
+      steps: [
+        { instruction: "Go to the listing in Seller Hub → More Actions → Sell Similar.", critical: true },
+        { instruction: "Review pre-filled details — title, price, photos, and specifics are copied from the original.", critical: false },
+        { instruction: "Adjust the price if needed. This is a good opportunity to test a slightly lower price point.", critical: true, note: "A 5–10% reduction on the fresh listing often gets it sold before the original." },
+        { instruction: "Improve the title if it has room — add any missing keywords before submitting.", critical: false },
+        { instruction: "Submit. The new listing goes live fresh. Monitor for 14 days.", critical: false },
+        { instruction: "When one sells, end the other immediately to avoid double-selling.", critical: true },
+      ],
+      platform_tips: [
+        "Sell Similar gives you a new item number and new impressions history — it is not the same as Revise or Relist.",
+        "The fresh listing gets eBay's early-listing visibility boost in the first 7 days. Price it right from the start.",
+        "If the fresh listing gets watchers but doesn't sell after 14 days, drop the price 10% and let the watcher notification do the work.",
+      ],
+      estimated_time_to_outcome: "7–21 days",
+      timing_tip: "List the fresh copy Tuesday–Thursday evenings for peak initial traffic.",
+    }),
+
+    title_rewrite: (item) => ({
+      platform: "eBay",
+      action: "title_rewrite",
+      title: "Rewrite Your Listing Title",
+      overview: `Your title scores ${item.title_keyword_strength}/100 for keyword coverage. eBay's Cassini search is keyword-first — your title is the primary index signal. Every unused character is a missed search impression. A complete rewrite with brand + model + colorway + condition + SKU codes can double organic impressions overnight.`,
+      steps: [
+        { instruction: "Search eBay for this exact item. Filter to Sold Listings. Study what the highest-priced sold listings used in their titles.", critical: true, note: "You want keywords that buyers actually searched, not keywords you think they search." },
+        { instruction: "Open your listing → Revise Item → update the title field.", critical: true },
+        { instruction: "Use all 80 characters. Structure: [Brand] + [Model/Style Name] + [Year/Season] + [Colorway] + [Size] + [Condition] + [SKU if applicable].", critical: true },
+        { instruction: "Include the exact model number or SKU if known (e.g. 'CV1724-100' not just 'Air Force 1').", critical: false, note: "Buyers searching by SKU are the most specific, highest-intent audience." },
+        { instruction: "Remove filler words: 'MUST SEE', 'BEAUTIFUL', 'RARE!!', 'HOT'. Every word must be a search term.", critical: false },
+        { instruction: "Save. eBay re-indexes within 24 hours. Monitor impressions over the next 48 hours.", critical: false },
+      ],
+      platform_tips: [
+        "eBay Cassini indexes every word individually. 'Nike Air Jordan 1 Retro High OG' surfaces for 6 different search queries. 'Nike Shoes Nice Condition' surfaces for 3.",
+        "Parentheses and punctuation don't help — plain keywords in order of specificity do.",
+        "The title rewrite is free and takes 10 minutes. It's the highest ROI action per minute invested.",
+      ],
+      estimated_time_to_outcome: "2–5 days after re-indexing",
+    }),
+
     hold: () => ({
       platform: "eBay",
       action: "hold",
@@ -828,13 +873,16 @@ function buildSecondaryActions(item: ScoredItem): RecoveryAction[] {
   const primary = item.primary_recovery_action;
   const secondaries: RecoveryAction[] = [];
 
+  if (item.title_keyword_strength < 60 && primary !== "title_rewrite") {
+    secondaries.push("title_rewrite");
+  }
   if (!item.item_specifics_complete && primary !== "optimize_specifics") {
     secondaries.push("optimize_specifics");
   }
   if (item.image_count <= 3 && primary !== "add_photos") {
     secondaries.push("add_photos");
   }
-  if (item.days_listed >= 60 && primary !== "strategic_markdown") {
+  if (item.days_listed >= 60 && primary !== "strategic_markdown" && primary !== "sell_similar") {
     secondaries.push("strategic_markdown");
   }
   if (
@@ -853,6 +901,8 @@ function estimateDaysToSale(item: ScoredItem): number {
 
   const baseEstimates: Record<RecoveryAction, number> = {
     relist_now:          14,
+    sell_similar:        18,
+    title_rewrite:       5,
     optimize_specifics:  5,
     strategic_markdown:  7,
     add_photos:          10,

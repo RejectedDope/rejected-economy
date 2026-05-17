@@ -3,18 +3,21 @@ import type { InventoryItem } from "./types";
 // ─── Mock Inventory ────────────────────────────────────────────────────────────
 // 20 active + 1 sold. Distribution: 5 Critical · 5 High · 5 Medium · 5 Low
 //
-// Dead Inventory Score breakdown:
-//   days_listed: ≤30→0  ≤60→15  ≤90→35  ≤180→50  else→60  (max 60)
-//   missing specifics: +15
-//   image_count=1: +12  | 2–3: +5
-//   title_keyword_strength: <40→+13  <60→+7  <75→+3
-//   Risk: Critical ≥75 · High ≥50 · Medium ≥30 · Low <30
+// Dead Inventory Score — 7-factor heuristic, 100pt max:
+//   days_listed             (35pt): ≤14→0  ≤30→6  ≤60→14  ≤90→22  ≤180→28  >180→35
+//   pricing_competitiveness (20pt): views+watchers rejection signals + stale price (no markdown)
+//   visibility_signals      (15pt): watcher deficit, view velocity, no promotion
+//   title_strength          (10pt): <40→+10  <60→+6  <75→+2
+//   item_specifics          (10pt): incomplete → +10
+//   photo_coverage           (5pt): =1→+5  ≤3→+3  ≤5→+1
+//   shipping                 (5pt): cost>25% of price → +5  >15% → +3  non-free price<$40 → +2
+//   Risk: Critical ≥75 · High 50–74 · Medium 30–49 · Low <30
 //
 // Engagement metrics reflect realistic platform behavior:
-//   Critical items: high impressions, low watchers (seen but not converting)
-//   High risk: moderate views, some watchers (slight interest, no conversion)
-//   Medium: lower views (still active, partial visibility)
-//   Low: fresh, low totals but healthy watcher-to-view ratio
+//   Critical: high views, zero watchers (seen, not converting — price/quality rejection)
+//   High: moderate views, 1 watcher, no markdown (stale pricing or listing gap)
+//   Medium: moderate views, 1–2 watchers, some engagement but not converting
+//   Low: fresh listings with healthy watcher-to-view ratios
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NOW = new Date().toISOString();
@@ -27,15 +30,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
   // ═══════════════════════════════════════════════════════════════════════════
 
   {
-    // Score: 60 (312d) + 15 (no spec) + 5 (2 photos) + 3 (title 72, ≥60<75) = 83
-    // Action: relist_now — 312d < 365d, price $45 > $15, worth fresh listing
-    // Engagement: high impressions (been seen 300+ times), zero new interest
+    // Score: 35 (days >180) + 20 (views 347, watchers 0, no markdown) + 10 (visibility) + 2 (title 72) + 10 (no specs) + 3 (2 photos) = 80 → CRITICAL
+    // Action: relist_now — 312d, price $45 > $15, full visibility reset needed
     id: "1",
     user_id: "demo",
     title: "Vintage Levi's 501 Jeans 34x32 Distressed Worn Fade 90s Grunge",
     platform: "eBay",
     price: 45.00,
-    original_price: 55.00,
+    original_price: 45.00,
     cost_basis: 12.00,
     days_listed: 312,
     date_listed: daysAgo(312),
@@ -47,7 +49,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     shipping_type: "calculated",
     shipping_cost: 6.50,
     views: 347,
-    watchers: 1,
+    watchers: 0,
     impressions: 1240,
     status: "active",
     image_url: undefined,
@@ -55,15 +57,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(45),
   },
   {
-    // Score: 60 (245d) + 15 (no spec) + 5 (3 photos) + 0 (title 80, ≥75) = 80
-    // Action: relist_now — high value, 245d, worth full relist effort
-    // Engagement: people find it, no one's buying at this price without fresh listing
+    // Score: 35 (days >180) + 20 (views 892, watchers 0, no markdown) + 10 (visibility) + 0 (title 80) + 10 (no specs) + 3 (3 photos) = 78 → CRITICAL
+    // Action: relist_now — 245d, high-value item, full impressions reset required
     id: "2",
     user_id: "demo",
     title: "Air Jordan 1 Retro High OG Chicago 2015 Nike Size 11 DS",
     platform: "eBay",
     price: 285.00,
-    original_price: 320.00,
+    original_price: 285.00,
     cost_basis: 180.00,
     days_listed: 245,
     date_listed: daysAgo(245),
@@ -74,7 +75,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     has_promoted_listing: false,
     shipping_type: "free",
     views: 892,
-    watchers: 4,
+    watchers: 0,
     impressions: 3100,
     status: "active",
     image_url: undefined,
@@ -82,8 +83,8 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(60),
   },
   {
-    // Score: 60 (198d) + 15 (no spec) + 12 (1 photo) + 7 (title 55, ≥40<60) = 94
-    // Action: relist_now — single photo is killing CTR, relist with 8+ photos
+    // Score: 35 (days >180) + 12 (views 223, watchers 0 — has markdown) + 10 (visibility) + 6 (title 55) + 10 (no specs) + 5 (1 photo) = 78 → CRITICAL
+    // Action: relist_now — 198d, single photo killing CTR, fresh listing with 8+ photos
     id: "3",
     user_id: "demo",
     title: "Nintendo 64 Console Bundle N64 With 2 Controllers All Cords",
@@ -109,14 +110,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(90),
   },
   {
-    // Score: 60 (421d) + 15 (no spec) + 12 (1 photo) + 3 (title 68, ≥60<75) = 90
-    // Action: liquidate — 421d > 365d, carrying cost exceeds recovery potential
+    // Score: 35 (days >180) + 20 (views 510, watchers 0, no markdown) + 10 (visibility) + 2 (title 68) + 10 (no specs) + 5 (1 photo) = 82 → CRITICAL
+    // Action: liquidate — 421d > 365d year+ override, carrying cost wins regardless of score
     id: "4",
     user_id: "demo",
     title: "Ralph Lauren Polo Bear Knit Sweater Large Vintage Rare 1990s",
     platform: "eBay",
     price: 95.00,
-    original_price: 115.00,
+    original_price: 95.00,
     cost_basis: 28.00,
     days_listed: 421,
     date_listed: daysAgo(421),
@@ -128,7 +129,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     shipping_type: "calculated",
     shipping_cost: 5.50,
     views: 510,
-    watchers: 2,
+    watchers: 0,
     impressions: 1870,
     status: "active",
     image_url: undefined,
@@ -136,8 +137,8 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(120),
   },
   {
-    // Score: 60 (380d) + 15 (no spec) + 12 (1 photo) + 7 (title 40, <60) = 94
-    // Action: bundle — price $8 < $15, not worth solo relist, combine into lot
+    // Score: 35 (days >180) + 8 (views 89, watchers 0 — has markdown) + 15 (visibility: low velocity) + 6 (title 40) + 10 (no specs) + 5 (1 photo) + 2 (non-free, price<$40) = 81 → CRITICAL
+    // Action: bundle — 380d > 365d year+ override, price $8 < $15 → bundle not worth solo relist
     id: "5",
     user_id: "demo",
     title: "Funko Pop Lot 12 Mixed Marvel DC Hot Topic Exclusives",
@@ -167,15 +168,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
   // ═══════════════════════════════════════════════════════════════════════════
 
   {
-    // Score: 50 (142d) + 0 (complete) + 0 (5 photos) + 0 (title 88, ≥75) = 50
-    // Action: strategic_markdown — listing quality is fine, price is the lever
-    // 4 watchers = active interest; a 15–20% drop will trigger notifications
+    // Score: 28 (days 142) + 20 (views 445, watchers 0, no markdown at 90d+) + 10 (visibility) + 0 (title 88) + 0 (specs) + 1 (5 photos) = 59 → HIGH
+    // Action: strategic_markdown — quality listing, zero watchers = price signal; a 15% cut triggers activity
     id: "6",
     user_id: "demo",
     title: "Supreme Box Logo Hoodie FW18 Black Large Bogo Authentic",
     platform: "eBay",
     price: 340.00,
-    original_price: 375.00,
+    original_price: 340.00,
     cost_basis: 220.00,
     days_listed: 142,
     date_listed: daysAgo(142),
@@ -186,7 +186,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     has_promoted_listing: false,
     shipping_type: "free",
     views: 445,
-    watchers: 4,
+    watchers: 0,
     impressions: 1340,
     status: "active",
     image_url: undefined,
@@ -194,14 +194,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(30),
   },
   {
-    // Score: 50 (130d) + 0 (complete) + 0 (4 photos) + 3 (title 65, ≥60<75) = 53
-    // Action: strategic_markdown — 4-month PS2, decent listing, price stagnation
+    // Score: 28 (days 130) + 16 (views 312, watcher 1, no markdown at 90d+) + 6 (visibility: watcher deficit + no promo) + 2 (title 65) + 0 (specs) + 1 (4 photos) = 53 → HIGH
+    // Action: strategic_markdown — 4-month PS2, good listing, price hasn't moved; drop $10 now
     id: "7",
     user_id: "demo",
     title: "Sony PlayStation 2 PS2 Slim Silver Console SCPH-77001 Tested Works",
     platform: "eBay",
     price: 89.00,
-    original_price: 99.00,
+    original_price: 89.00,
     cost_basis: 22.00,
     days_listed: 130,
     date_listed: daysAgo(130),
@@ -213,7 +213,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     shipping_type: "calculated",
     shipping_cost: 12.00,
     views: 312,
-    watchers: 2,
+    watchers: 1,
     impressions: 980,
     status: "active",
     image_url: undefined,
@@ -221,8 +221,8 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(20),
   },
   {
-    // Score: 50 (112d) + 15 (no spec) + 5 (2 photos) + 3 (title 70, ≥60<75) = 73
-    // Action: optimize_specifics — biggest quick win; Depop buyers use filters too
+    // Score: 28 (days 112) + 8 (views 198, watcher 1 — has markdown) + 6 (visibility) + 2 (title 70) + 10 (no specs) + 3 (2 photos) = 57 → HIGH
+    // Action: optimize_specifics — biggest quick win; Depop buyers use filters, fill all fields first
     id: "8",
     user_id: "demo",
     title: "Carhartt WIP Detroit Jacket Brown Canvas Lined Blanket Medium",
@@ -248,15 +248,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(14),
   },
   {
-    // Score: 35 (98d) + 15 (no spec) + 0 (4 photos) + 0 (title 82, ≥75) = 50
-    // Action: optimize_specifics — approaching 90-day cliff, missing specifics
-    // is the fastest fix before it falls off completely
+    // Score: 28 (days 98) + 16 (views 623, watcher 1, no markdown at 90d+) + 6 (visibility) + 0 (title 82) + 10 (no specs) + 1 (4 photos) = 61 → HIGH
+    // Action: optimize_specifics — approaching Cassini cliff, missing specifics is fastest fix
     id: "9",
     user_id: "demo",
     title: "Pyrex Vision Hoodie Red 2012 Virgil Abloh Off-White Size M",
     platform: "eBay",
     price: 450.00,
-    original_price: 480.00,
+    original_price: 450.00,
     cost_basis: 280.00,
     days_listed: 98,
     date_listed: daysAgo(98),
@@ -267,7 +266,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     has_promoted_listing: false,
     shipping_type: "free",
     views: 623,
-    watchers: 6,
+    watchers: 1,
     impressions: 1890,
     status: "active",
     image_url: undefined,
@@ -275,15 +274,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(7),
   },
   {
-    // Score: 50 (120d) + 0 (complete) + 5 (3 photos) + 7 (title 58, ≥40<60) = 62
-    // Action: strategic_markdown — 4 months on Poshmark with no offers
-    // Drop $10+ to trigger liker notifications; Poshmark price-drop algorithm
+    // Score: 28 (days 120) + 16 (views 234, watcher 1, no markdown at 90d+) + 6 (visibility) + 6 (title 58) + 0 (specs) + 3 (3 photos) = 59 → HIGH
+    // Action: strategic_markdown — 4 months on Poshmark, 1 liker; drop $10+ to trigger notification
     id: "10",
     user_id: "demo",
     title: "Coach Leather Shoulder Bag Brown Vintage Y2K Legacy Purse",
     platform: "Poshmark",
     price: 55.00,
-    original_price: 65.00,
+    original_price: 55.00,
     cost_basis: 18.00,
     days_listed: 120,
     date_listed: daysAgo(120),
@@ -295,7 +293,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     shipping_type: "flat",
     shipping_cost: 7.97,
     views: 234,
-    watchers: 8,
+    watchers: 1,
     impressions: 670,
     status: "active",
     image_url: undefined,
@@ -308,9 +306,8 @@ export const MOCK_ITEMS: InventoryItem[] = [
   // ═══════════════════════════════════════════════════════════════════════════
 
   {
-    // Score: 35 (67d) + 0 (complete) + 0 (6 photos) + 0 (title 85, ≥75) = 35
-    // Action: move_platform — fully optimized, not moving → wrong audience
-    // Nike SBs move faster on StockX / GOAT than eBay for this style
+    // Score: 22 (days 67) + 13 (views 188, watcher 1, no markdown — 60d stale) + 0 (visibility) + 0 (title 85) + 0 (specs) + 0 (6 photos) = 35 → MEDIUM
+    // Action: sell_similar — fully optimized, 67d qualifies; fresh impressions clock before 90d cliff
     id: "11",
     user_id: "demo",
     title: "Nike SB Dunk Low Pro Hemp Natural 2021 Size 10.5 Deadstock",
@@ -327,7 +324,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     has_promoted_listing: false,
     shipping_type: "free",
     views: 188,
-    watchers: 2,
+    watchers: 1,
     impressions: 560,
     status: "active",
     image_url: undefined,
@@ -335,14 +332,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(10),
   },
   {
-    // Score: 35 (74d) + 0 (complete) + 0 (4 photos) + 0 (title 78, ≥75) = 35
-    // Action: strategic_markdown — quality listing, 74d sitting → price drop triggers activity
+    // Score: 22 (days 74) + 13 (views 156, watcher 1, no markdown — 60d stale) + 0 (visibility) + 0 (title 78) + 0 (specs) + 1 (4 photos) = 36 → MEDIUM
+    // Action: sell_similar — 74d, well-listed, fresh listing copy before 90d Cassini cliff
     id: "12",
     user_id: "demo",
     title: "Polaroid SX-70 Land Camera Vintage Film Tested Working Fully",
     platform: "eBay",
     price: 75.00,
-    original_price: 85.00,
+    original_price: 75.00,
     cost_basis: 20.00,
     days_listed: 74,
     date_listed: daysAgo(74),
@@ -354,7 +351,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     shipping_type: "calculated",
     shipping_cost: 8.00,
     views: 156,
-    watchers: 3,
+    watchers: 1,
     impressions: 490,
     status: "active",
     image_url: undefined,
@@ -362,9 +359,8 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(15),
   },
   {
-    // Score: 35 (68d) + 0 (complete) + 5 (2 photos) + 3 (title 64, ≥60<75) = 43
-    // Action: add_photos — 2 photos is below the 4-photo CTR floor;
-    // Mercari is visual, more photos = more trust
+    // Score: 22 (days 68) + 8 (views 145, watcher 1 — has markdown) + 0 (visibility) + 2 (title 64) + 0 (specs) + 3 (2 photos) + 3 (shipping $5 > 15% of $32) = 38 → MEDIUM
+    // Action: add_photos — 2 photos is below the 4-photo CTR floor; Mercari is visual-first
     id: "13",
     user_id: "demo",
     title: "Tommy Hilfiger Flag Crewneck Sweatshirt Size XL 90s Vintage",
@@ -390,15 +386,14 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(8),
   },
   {
-    // Score: 35 (83d) + 0 (complete) + 5 (3 photos) + 0 (title 90, ≥75) = 40
-    // Action: strategic_markdown — 83d with good listing, niche collectible,
-    // price-sensitive market, a 15% drop changes the buyer calculation
+    // Score: 22 (days 83) + 13 (views 276, watcher 1, no markdown — 60d stale) + 0 (visibility) + 0 (title 90) + 0 (specs) + 3 (3 photos) = 38 → MEDIUM
+    // Action: strategic_markdown — 83d, 3 photos disqualifies sell_similar, price-test the market
     id: "14",
     user_id: "demo",
     title: "BE@RBRICK 400% Medicom Toy KAWS Companion Figure 2020 NIB",
     platform: "eBay",
     price: 210.00,
-    original_price: 230.00,
+    original_price: 210.00,
     cost_basis: 140.00,
     days_listed: 83,
     date_listed: daysAgo(83),
@@ -409,7 +404,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     has_promoted_listing: false,
     shipping_type: "free",
     views: 276,
-    watchers: 5,
+    watchers: 1,
     impressions: 820,
     status: "active",
     image_url: undefined,
@@ -417,9 +412,8 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(12),
   },
   {
-    // Score: 35 (62d) + 0 (complete) + 0 (7 photos) + 0 (title 92, ≥75) = 35
-    // Action: move_platform — listing optimized, Yeezy market moved to GOAT/StockX,
-    // eBay is crowded with fakes → authentic pairs move faster with authentication
+    // Score: 22 (days 62) + 17 (views 310, watchers 0, no markdown — 60d stale) + 7 (visibility: watchers 0 at 60d+) + 0 (title 92) + 0 (specs) + 0 (7 photos) = 46 → MEDIUM
+    // Action: sell_similar — 62d, zero watchers but great listing; fresh impressions copy
     id: "15",
     user_id: "demo",
     title: "Adidas Yeezy Boost 350 V2 Zebra CP9654 Size 9 DS OG All",
@@ -449,7 +443,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
   // ═══════════════════════════════════════════════════════════════════════════
 
   {
-    // Score: 0 (12d) + 0 + 0 (5 photos) + 0 (title 80) = 0
+    // Score: 0 (days 12) + 0 + 0 + 0 (title 80) + 0 (specs) + 1 (5 photos) = 1 → LOW
     id: "16",
     user_id: "demo",
     title: "Carhartt Beanie Watch Hat Black OG Acrylic Knit Unisex USA",
@@ -474,7 +468,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(2),
   },
   {
-    // Score: 0 (8d) = 0
+    // Score: 0 (days 8) = 0 → LOW
     id: "17",
     user_id: "demo",
     title: "Stussy 8 Ball Fleece Crewneck Sweatshirt Black Large 2023 NWT",
@@ -500,7 +494,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(1),
   },
   {
-    // Score: 0 (22d) = 0
+    // Score: 6 (days 22) + 0 + 0 + 0 (title 91) + 0 (specs) + 0 (9 photos) = 6 → LOW
     id: "18",
     user_id: "demo",
     title: "Vintage Marlboro Racing Jacket Medium USA Made 1995 Philip Morris",
@@ -526,7 +520,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(3),
   },
   {
-    // Score: 0 (5d) = 0
+    // Score: 0 (days 5) = 0 → LOW
     id: "19",
     user_id: "demo",
     title: "New Balance 990v3 Made in USA Grey M990GL3 Size 11.5 NWT",
@@ -551,7 +545,7 @@ export const MOCK_ITEMS: InventoryItem[] = [
     updated_at: daysAgo(1),
   },
   {
-    // Score: 0 (18d) = 0
+    // Score: 6 (days 18) + 0 + 0 + 0 (title 96) + 0 (specs) + 0 (6 photos) = 6 → LOW
     id: "20",
     user_id: "demo",
     title: "Pokemon Base Set Charizard Holo 4/102 PSA 7 NM Graded Slab",

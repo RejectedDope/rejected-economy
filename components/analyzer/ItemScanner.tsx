@@ -44,14 +44,16 @@ const SHIPPING_OPTIONS: { value: ShippingType; label: string }[] = [
 ];
 
 const ACTION_LABELS: Record<RecoveryAction, string> = {
-  relist_now: "Relist Now",
-  strategic_markdown: "Strategic Markdown",
-  bundle: "Bundle It",
-  move_platform: "Move Platform",
-  optimize_specifics: "Fix Item Specifics",
-  add_photos: "Add More Photos",
-  liquidate: "Liquidate",
-  hold: "Hold — Monitor",
+  relist_now:          "Relist Now",
+  sell_similar:        "Use Sell Similar",
+  strategic_markdown:  "Strategic Markdown",
+  title_rewrite:       "Rewrite Title",
+  bundle:              "Bundle It",
+  move_platform:       "Move Platform",
+  optimize_specifics:  "Fix Item Specifics",
+  add_photos:          "Add More Photos",
+  liquidate:           "Liquidate",
+  hold:                "Hold — Monitor",
 };
 
 // ─── Form State ───────────────────────────────────────────────────────────────

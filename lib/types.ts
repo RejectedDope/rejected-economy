@@ -43,7 +43,9 @@ export type SellThroughVelocity = "Fast" | "Normal" | "Slow" | "Stalled";
 
 export type RecoveryAction =
   | "relist_now"         // End + create fresh listing (resets impressions clock)
+  | "sell_similar"       // eBay: Sell Similar — fresh listing copy, original stays active
   | "strategic_markdown" // Price drop to trigger watchers + Recently Lowered filter
+  | "title_rewrite"      // Rewrite title for better keyword coverage (free, no relist)
   | "bundle"             // Group with similar low-value items, single listing
   | "move_platform"      // Cross-list or migrate to better-fit marketplace
   | "optimize_specifics" // Fill all item specifics fields (eBay Cassini critical)
@@ -52,6 +54,21 @@ export type RecoveryAction =
   | "hold";              // Within normal sell-through window, monitor only
 
 export type ActionUrgency = "immediate" | "this_week" | "this_month";
+
+// Pricing Intelligence — how the listed price compares to market signals
+export type PricingPosition =
+  | "overpriced"             // Views without watchers — buyers rejecting the price
+  | "competitive"            // Engagement signals consistent with market price
+  | "underpriced"            // Strong watcher rate — could likely price higher
+  | "liquidation_candidate"; // 365d+ with no traction — market has spoken
+
+export interface PricingAnalysis {
+  position: PricingPosition;
+  label: string;
+  confidence: "high" | "medium" | "low";
+  signals: string[];
+  suggested_markdown_pct?: number; // e.g. 0.15 = reduce by 15%
+}
 
 // ─── Core Inventory Item ─────────────────────────────────────────────────────
 

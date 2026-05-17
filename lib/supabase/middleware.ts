@@ -30,7 +30,8 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const protectedPaths = ["/dashboard", "/analyzer", "/inventory", "/recovery", "/settings"];
+  // Demo routes work without auth (mock data only). Settings requires a real account.
+  const protectedPaths = ["/settings"];
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (!user && isProtected) {

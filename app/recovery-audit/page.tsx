@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -148,7 +149,14 @@ export default function RecoveryAuditPage() {
   const formRef = useRef<HTMLDivElement>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  // Detect whether Supabase is pointed at a real project.
+  // NEXT_PUBLIC_ vars are inlined at build time — safe to read here.
+  const supabaseConfigured =
+    !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co";
   const [form, setForm] = useState<AuditFormData>({
     name: "",
     email: "",
@@ -175,26 +183,43 @@ export default function RecoveryAuditPage() {
       setErrors(validationErrors);
       return;
     }
+
     setSubmitting(true);
+    setSubmitError(null);
 
-    // TODO: Persist to Supabase `audit_leads` table when ready.
-    // Schema needed:
-    //   create table audit_leads (
-    //     id uuid primary key default gen_random_uuid(),
-    //     name text not null,
-    //     email text not null,
-    //     platform text not null,
-    //     inventory_count text,
-    //     biggest_problem text not null,
-    //     listing_url text,
-    //     notes text,
-    //     created_at timestamptz default now()
-    //   );
-    // Then: await supabase.from('audit_leads').insert({ ...form });
+    if (!supabaseConfigured) {
+      // Dev/demo mode: Supabase not wired up yet. Skip the insert and
+      // show a warning instead of faking success or throwing a network error.
+      setSubmitting(false);
+      setSubmitError(
+        "⚙️ Dev mode: Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable lead capture. Run supabase/migrations/002_audit_leads.sql first."
+      );
+      return;
+    }
 
-    await new Promise((r) => setTimeout(r, 800)); // simulate network
-    setSubmitting(false);
-    setSubmitted(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("audit_leads").insert({
+        name:             form.name.trim(),
+        email:            form.email.trim().toLowerCase(),
+        primary_platform: form.platform,
+        inventory_count:  form.inventory_count,
+        biggest_problem:  form.biggest_problem,
+        listing_url:      form.listing_url.trim() || null,
+        notes:            form.notes.trim() || null,
+      });
+
+      if (error) throw error;
+
+      setSubmitted(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setSubmitError(
+        `Couldn't save your audit request. Please try again. (${message})`
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -467,6 +492,12 @@ export default function RecoveryAuditPage() {
                         rows={3}
                       />
                     </div>
+
+                    {submitError && (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+                        <p className="text-xs leading-relaxed text-red-400">{submitError}</p>
+                      </div>
+                    )}
 
                     <Button
                       type="submit"

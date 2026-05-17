@@ -116,18 +116,24 @@ export default function AnalyzerPage() {
 
             {/* Scoring legend */}
             <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-              <p className="mb-3 text-xs font-bold uppercase tracking-widest text-zinc-600">
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-600">
                 How Scoring Works
+              </p>
+              <p className="mb-3 text-[11px] text-zinc-600">
+                Each listing is scored 0–100 across 7 signals. Higher = more trapped cash, dead-stock risk, or weak listing. The score drives the primary recovery action.
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
-                  { label: "Days Listed", weight: "60%", desc: "Primary decay driver" },
-                  { label: "Item Specifics", weight: "15%", desc: "Missing = invisible in filters" },
-                  { label: "Photo Count", weight: "12%", desc: "1 photo = 40% less CTR" },
-                  { label: "Title Strength", weight: "13%", desc: "Keyword coverage in title" },
+                  { label: "Listing Age / Age Risk",     weight: "35%", desc: "Freshness cliff at 90d — buried by algorithm at 180d+" },
+                  { label: "Pricing Position",            weight: "20%", desc: "Views without watchers = price rejection signal" },
+                  { label: "Marketplace Visibility",      weight: "15%", desc: "Watcher deficit, view velocity, no promotion" },
+                  { label: "Title Quality",               weight: "10%", desc: "Keyword coverage drives search placement" },
+                  { label: "Listing Specifics",           weight: "10%", desc: "Missing fields = invisible in filtered search" },
+                  { label: "Photo Quality",               weight: "5%",  desc: "1 photo = ~40% lower conversion than 4+" },
+                  { label: "Shipping Friction",           weight: "5%",  desc: "High shipping cost kills low-value conversions" },
                 ].map(({ label, weight, desc }) => (
                   <div key={label} className="flex items-start gap-2">
-                    <span className="mt-0.5 rounded bg-[#E935C1]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#E935C1]">
+                    <span className="mt-0.5 shrink-0 rounded bg-[#E935C1]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#E935C1]">
                       {weight}
                     </span>
                     <div>

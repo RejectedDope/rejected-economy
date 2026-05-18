@@ -22,7 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
 import { scoreAuditLead } from "@/lib/audit-scoring";
 
-// ─── Types ───────────────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type AuditFormData = {
   name: string;
@@ -36,7 +36,7 @@ type AuditFormData = {
 
 type FormErrors = Partial<Record<keyof AuditFormData, string>>;
 
-// ─── Constants ─────────────────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORMS = [
   "eBay",
@@ -120,7 +120,7 @@ const AUDIT_SIGNALS = [
   },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const supabaseConfigured =
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -140,7 +140,7 @@ const textareaCls =
 
 const fieldErrorCls = "mt-1 text-xs text-red-400";
 
-// ─── Validation ────────────────────────────────────────────────────────────────────────────
+// ─── Validation ───────────────────────────────────────────────────────────────
 
 function validate(data: AuditFormData): FormErrors {
   const e: FormErrors = {};
@@ -154,7 +154,7 @@ function validate(data: AuditFormData): FormErrors {
   return e;
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RecoveryAuditPage() {
   const formRef = useRef<HTMLDivElement>(null);
@@ -246,7 +246,7 @@ export default function RecoveryAuditPage() {
   return (
     <div className="min-h-screen bg-zinc-950">
 
-      {/* ── Nav ─────────────────────────────────────────────────────────────────── */}
+      {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
@@ -271,7 +271,7 @@ export default function RecoveryAuditPage() {
         </div>
       </header>
 
-      {/* ── Hero ────────────────────────────────────────────────────────────────── */}
+      {/* Hero */}
       <section className="relative overflow-hidden px-4 pb-14 pt-16 sm:px-6 sm:pt-24 sm:pb-20">
         <div className="pointer-events-none absolute inset-0 barcode-bg opacity-40" />
         <div className="pointer-events-none absolute left-1/2 top-0 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-[#E935C1]/5 blur-3xl" />
@@ -309,15 +309,14 @@ export default function RecoveryAuditPage() {
         </div>
       </section>
 
-      {/* ── Main content: form + promise ────────────────────────────────────── */}
+      {/* Main content */}
       <section className="px-4 pb-24 pt-6 sm:px-6 sm:pt-10" ref={formRef}>
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-8 lg:grid-cols-5 lg:items-start lg:gap-12">
 
-            {/* ── Left: Form or Confirmation ────────────────────────────── */}
+            {/* Left: Form or Confirmation */}
             <div className="lg:col-span-3">
               {submitted ? (
-                /* ── Confirmation panel ───────────────────────────────────── */}
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6 sm:p-8">
                   <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10">
                     <CheckCircle className="h-6 w-6 text-emerald-400" />
@@ -365,7 +364,6 @@ export default function RecoveryAuditPage() {
                   </div>
                 </div>
               ) : (
-                /* ── Intake form ────────────────────────────────────────────── */}
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-8">
                   <div className="mb-6">
                     <h2 className="text-lg font-black text-zinc-100">
@@ -563,7 +561,7 @@ export default function RecoveryAuditPage() {
               )}
             </div>
 
-            {/* ── Right: Audit promise / signal list ─────────────────────── */}
+            {/* Right: Audit promise / signal list */}
             <div className="space-y-4 lg:col-span-2">
               <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6">
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">
@@ -634,7 +632,7 @@ export default function RecoveryAuditPage() {
         </div>
       </section>
 
-      {/* ── Footer ────────────────────────────────────────────────────────────────── */}
+      {/* Footer */}
       <footer className="border-t border-zinc-800 px-4 py-8 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-2">

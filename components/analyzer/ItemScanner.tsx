@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { scoreItem } from "@/lib/scoring";
 import { analyzeItem } from "@/lib/recovery-engine";
+import { analyzeMarketplaceSignals } from "@/lib/marketplace-intelligence";
+import { IntelligencePanel } from "@/components/analyzer/IntelligencePanel";
 import { cn, formatCurrencyDecimal } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import type {
@@ -236,8 +238,7 @@ export function ItemScanner() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  // Build InventoryItem + run scoring + analysis on every render (all sync)
-  const { analysis } = useMemo(() => {
+  const { analysis, intelligence } = useMemo(() => {
     const item: InventoryItem = {
       id: "scanner-preview",
       user_id: "demo",
@@ -259,8 +260,10 @@ export function ItemScanner() {
       updated_at: new Date().toISOString(),
     };
     const scored = scoreItem(item);
-    const analysis = analyzeItem(scored);
-    return { scored, analysis };
+    return {
+      analysis: analyzeItem(scored),
+      intelligence: analyzeMarketplaceSignals(scored),
+    };
   }, [form]);
 
   const deadScore = analysis.dead_risk_score;
@@ -667,6 +670,14 @@ export function ItemScanner() {
               {analysis.platform_guidance.timing_tip}
             </p>
           )}
+        </div>
+
+        {/* 6. Marketplace Diagnostics */}
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
+          <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
+            Marketplace Diagnostics
+          </p>
+          <IntelligencePanel signals={intelligence} compact />
         </div>
       </div>
     </div>

@@ -18,6 +18,8 @@ import {
 import { MOCK_ITEMS } from "@/lib/mock-data";
 import { scoreItem } from "@/lib/scoring";
 import { analyzeItem } from "@/lib/recovery-engine";
+import { analyzeMarketplaceSignals } from "@/lib/marketplace-intelligence";
+import { IntelligencePanel } from "@/components/analyzer/IntelligencePanel";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatCurrencyDecimal } from "@/lib/utils";
@@ -96,7 +98,12 @@ export default function ItemDetailPage() {
     return analyzeItem(item);
   }, [item]);
 
-  if (!item || !analysis) {
+  const intelligence = useMemo(() => {
+    if (!item) return null;
+    return analyzeMarketplaceSignals(item);
+  }, [item]);
+
+  if (!item || !analysis || !intelligence) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="text-center">
@@ -301,6 +308,10 @@ export default function ItemDetailPage() {
                 </span>
               </div>
             </div>
+          </div>
+          {/* Marketplace Diagnostics */}
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+            <IntelligencePanel signals={intelligence} />
           </div>
         </div>
 

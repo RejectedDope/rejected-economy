@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
 import { scoreAuditLead } from "@/lib/audit-scoring";
+import { supabaseConfigured } from "@/lib/env";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,9 +123,7 @@ const AUDIT_SIGNALS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const supabaseConfigured =
-  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co";
+// supabaseConfigured imported from @/lib/env
 
 function selectCls(hasError: boolean) {
   return [

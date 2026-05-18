@@ -1,12 +1,9 @@
 import { BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { LeadsTable, type AuditLead } from "@/components/admin/LeadsTable";
+import { supabaseConfigured } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
-
-const supabaseConfigured =
-  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co";
 
 export default async function AdminAuditLeadsPage() {
   let leads: AuditLead[] = [];

@@ -20,8 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
+import { scoreAuditLead } from "@/lib/audit-scoring";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────────────────
 
 type AuditFormData = {
   name: string;
@@ -35,7 +36,7 @@ type AuditFormData = {
 
 type FormErrors = Partial<Record<keyof AuditFormData, string>>;
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ─────────────────────────────────────────────────────────────────────────────
 
 const PLATFORMS = [
   "eBay",
@@ -119,31 +120,41 @@ const AUDIT_SIGNALS = [
   },
 ];
 
-// ─── Styling helpers ──────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────────────────
 
-const selectClass =
-  "flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#E935C1] focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer";
+const supabaseConfigured =
+  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co";
 
-const textareaClass =
-  "flex min-h-[88px] w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#E935C1] focus:ring-offset-2 focus:ring-offset-zinc-950 resize-none";
-
-const fieldErrorClass = "mt-1 text-xs text-red-400";
-
-// ─── Validation ───────────────────────────────────────────────────────────────
-
-function validate(data: AuditFormData): FormErrors {
-  const errors: FormErrors = {};
-  if (!data.name.trim()) errors.name = "Name is required";
-  if (!data.email.trim()) errors.email = "Email is required";
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))
-    errors.email = "Enter a valid email address";
-  if (!data.platform) errors.platform = "Select your primary platform";
-  if (!data.inventory_count) errors.inventory_count = "Select your approximate inventory size";
-  if (!data.biggest_problem) errors.biggest_problem = "Select your biggest current problem";
-  return errors;
+function selectCls(hasError: boolean) {
+  return [
+    "flex h-10 w-full rounded-md border bg-zinc-900 px-3 py-2 text-sm text-zinc-100",
+    "focus:outline-none focus:ring-2 focus:ring-[#E935C1] focus:ring-offset-2 focus:ring-offset-zinc-950",
+    "disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer transition-colors",
+    hasError ? "border-red-500" : "border-zinc-700",
+  ].join(" ");
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const textareaCls =
+  "flex min-h-[88px] w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-[#E935C1] focus:ring-offset-2 focus:ring-offset-zinc-950 resize-none transition-colors";
+
+const fieldErrorCls = "mt-1 text-xs text-red-400";
+
+// ─── Validation ────────────────────────────────────────────────────────────────────────────
+
+function validate(data: AuditFormData): FormErrors {
+  const e: FormErrors = {};
+  if (!data.name.trim()) e.name = "Name is required";
+  if (!data.email.trim()) e.email = "Email is required";
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))
+    e.email = "Enter a valid email address";
+  if (!data.platform) e.platform = "Select your primary platform";
+  if (!data.inventory_count) e.inventory_count = "Select your approximate inventory size";
+  if (!data.biggest_problem) e.biggest_problem = "Select your biggest current problem";
+  return e;
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────────────────
 
 export default function RecoveryAuditPage() {
   const formRef = useRef<HTMLDivElement>(null);
@@ -151,12 +162,6 @@ export default function RecoveryAuditPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
-
-  // Detect whether Supabase is pointed at a real project.
-  // NEXT_PUBLIC_ vars are inlined at build time — safe to read here.
-  const supabaseConfigured =
-    !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co";
   const [form, setForm] = useState<AuditFormData>({
     name: "",
     email: "",
@@ -181,6 +186,7 @@ export default function RecoveryAuditPage() {
     const validationErrors = validate(form);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
@@ -188,8 +194,6 @@ export default function RecoveryAuditPage() {
     setSubmitError(null);
 
     if (!supabaseConfigured) {
-      // Dev/demo mode: Supabase not wired up yet. Skip the insert and
-      // show a warning instead of faking success or throwing a network error.
       setSubmitting(false);
       setSubmitError(
         "⚙️ Dev mode: Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable lead capture. Run supabase/migrations/002_audit_leads.sql first."
@@ -199,17 +203,34 @@ export default function RecoveryAuditPage() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("audit_leads").insert({
-        name:             form.name.trim(),
-        email:            form.email.trim().toLowerCase(),
-        primary_platform: form.platform,
-        inventory_count:  form.inventory_count,
-        biggest_problem:  form.biggest_problem,
-        listing_url:      form.listing_url.trim() || null,
-        notes:            form.notes.trim() || null,
-      });
+
+      const { data: inserted, error } = await supabase
+        .from("audit_leads")
+        .insert({
+          name:             form.name.trim(),
+          email:            form.email.trim().toLowerCase(),
+          primary_platform: form.platform,
+          inventory_count:  form.inventory_count,
+          biggest_problem:  form.biggest_problem,
+          listing_url:      form.listing_url.trim() || null,
+          notes:            form.notes.trim() || null,
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      if (inserted?.id) {
+        const scores = scoreAuditLead({
+          biggest_problem:  form.biggest_problem,
+          inventory_count:  form.inventory_count,
+          primary_platform: form.platform,
+        });
+        await supabase
+          .from("audit_leads")
+          .update(scores)
+          .eq("id", inserted.id);
+      }
 
       setSubmitted(true);
     } catch (err) {
@@ -225,7 +246,7 @@ export default function RecoveryAuditPage() {
   return (
     <div className="min-h-screen bg-zinc-950">
 
-      {/* ── Nav ───────────────────────────────────────────────────────────── */}
+      {/* ── Nav ─────────────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
@@ -250,8 +271,8 @@ export default function RecoveryAuditPage() {
         </div>
       </header>
 
-      {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden px-4 pb-16 pt-20 sm:px-6 sm:pt-24">
+      {/* ── Hero ────────────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden px-4 pb-14 pt-16 sm:px-6 sm:pt-24 sm:pb-20">
         <div className="pointer-events-none absolute inset-0 barcode-bg opacity-40" />
         <div className="pointer-events-none absolute left-1/2 top-0 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-[#E935C1]/5 blur-3xl" />
 
@@ -288,16 +309,16 @@ export default function RecoveryAuditPage() {
         </div>
       </section>
 
-      {/* ── Main content: form + promise ──────────────────────────────────── */}
-      <section className="px-4 pb-24 pt-8 sm:px-6" ref={formRef}>
+      {/* ── Main content: form + promise ────────────────────────────────────── */}
+      <section className="px-4 pb-24 pt-6 sm:px-6 sm:pt-10" ref={formRef}>
         <div className="mx-auto max-w-5xl">
-          <div className="grid gap-8 lg:grid-cols-5 lg:gap-12 lg:items-start">
+          <div className="grid gap-8 lg:grid-cols-5 lg:items-start lg:gap-12">
 
             {/* ── Left: Form or Confirmation ────────────────────────────── */}
             <div className="lg:col-span-3">
               {submitted ? (
-                /* ── Confirmation panel ─────────────────────────────────── */
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-8">
+                /* ── Confirmation panel ───────────────────────────────────── */}
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6 sm:p-8">
                   <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10">
                     <CheckCircle className="h-6 w-6 text-emerald-400" />
                   </div>
@@ -329,13 +350,13 @@ export default function RecoveryAuditPage() {
                     <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">
                       While you wait
                     </p>
-                    <ul className="mt-3 space-y-2">
+                    <ul className="mt-3 space-y-2.5">
                       {[
                         "Check any listing with 100+ views and 0 watchers — that's a price rejection signal",
                         "Count listings over 90 days old — those are past the Cassini freshness cliff",
-                        "Any item under $15 that's been sitting 6+ months belongs in a bundle, not solo",
+                        "Any item under $15 sitting 6+ months belongs in a bundle, not solo",
                       ].map((tip) => (
-                        <li key={tip} className="flex items-start gap-2">
+                        <li key={tip} className="flex items-start gap-2.5">
                           <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#E935C1]" />
                           <span className="text-xs leading-relaxed text-zinc-500">{tip}</span>
                         </li>
@@ -344,8 +365,8 @@ export default function RecoveryAuditPage() {
                   </div>
                 </div>
               ) : (
-                /* ── Intake form ────────────────────────────────────────── */
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 sm:p-8">
+                /* ── Intake form ────────────────────────────────────────────── */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-8">
                   <div className="mb-6">
                     <h2 className="text-lg font-black text-zinc-100">
                       Audit Intake
@@ -367,8 +388,12 @@ export default function RecoveryAuditPage() {
                           placeholder="Your name"
                           value={form.name}
                           onChange={(e) => set("name", e.target.value)}
+                          aria-invalid={!!errors.name}
+                          className={errors.name ? "border-red-500" : ""}
                         />
-                        {errors.name && <p className={fieldErrorClass}>{errors.name}</p>}
+                        {errors.name && (
+                          <p className={fieldErrorCls} role="alert">{errors.name}</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="email">Email</Label>
@@ -378,8 +403,12 @@ export default function RecoveryAuditPage() {
                           placeholder="you@example.com"
                           value={form.email}
                           onChange={(e) => set("email", e.target.value)}
+                          aria-invalid={!!errors.email}
+                          className={errors.email ? "border-red-500" : ""}
                         />
-                        {errors.email && <p className={fieldErrorClass}>{errors.email}</p>}
+                        {errors.email && (
+                          <p className={fieldErrorCls} role="alert">{errors.email}</p>
+                        )}
                       </div>
                     </div>
 
@@ -389,9 +418,10 @@ export default function RecoveryAuditPage() {
                       <div className="relative">
                         <select
                           id="platform"
-                          className={selectClass}
+                          className={selectCls(!!errors.platform)}
                           value={form.platform}
                           onChange={(e) => set("platform", e.target.value)}
+                          aria-invalid={!!errors.platform}
                         >
                           <option value="" disabled>Select your main platform…</option>
                           {PLATFORMS.map((p) => (
@@ -404,7 +434,9 @@ export default function RecoveryAuditPage() {
                           </svg>
                         </div>
                       </div>
-                      {errors.platform && <p className={fieldErrorClass}>{errors.platform}</p>}
+                      {errors.platform && (
+                        <p className={fieldErrorCls} role="alert">{errors.platform}</p>
+                      )}
                     </div>
 
                     {/* Inventory count */}
@@ -413,9 +445,10 @@ export default function RecoveryAuditPage() {
                       <div className="relative">
                         <select
                           id="inventory_count"
-                          className={selectClass}
+                          className={selectCls(!!errors.inventory_count)}
                           value={form.inventory_count}
                           onChange={(e) => set("inventory_count", e.target.value)}
+                          aria-invalid={!!errors.inventory_count}
                         >
                           <option value="" disabled>How many active listings?</option>
                           {INVENTORY_COUNTS.map((c) => (
@@ -429,7 +462,7 @@ export default function RecoveryAuditPage() {
                         </div>
                       </div>
                       {errors.inventory_count && (
-                        <p className={fieldErrorClass}>{errors.inventory_count}</p>
+                        <p className={fieldErrorCls} role="alert">{errors.inventory_count}</p>
                       )}
                     </div>
 
@@ -439,9 +472,10 @@ export default function RecoveryAuditPage() {
                       <div className="relative">
                         <select
                           id="biggest_problem"
-                          className={selectClass}
+                          className={selectCls(!!errors.biggest_problem)}
                           value={form.biggest_problem}
                           onChange={(e) => set("biggest_problem", e.target.value)}
+                          aria-invalid={!!errors.biggest_problem}
                         >
                           <option value="" disabled>What&apos;s the main issue?</option>
                           {PROBLEMS.map((p) => (
@@ -455,7 +489,7 @@ export default function RecoveryAuditPage() {
                         </div>
                       </div>
                       {errors.biggest_problem && (
-                        <p className={fieldErrorClass}>{errors.biggest_problem}</p>
+                        <p className={fieldErrorCls} role="alert">{errors.biggest_problem}</p>
                       )}
                     </div>
 
@@ -485,7 +519,7 @@ export default function RecoveryAuditPage() {
                       </Label>
                       <textarea
                         id="notes"
-                        className={textareaClass}
+                        className={textareaCls}
                         placeholder="Anything else we should know — categories you sell, items you're stuck on, goals…"
                         value={form.notes}
                         onChange={(e) => set("notes", e.target.value)}
@@ -494,7 +528,10 @@ export default function RecoveryAuditPage() {
                     </div>
 
                     {submitError && (
-                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+                      <div
+                        role="alert"
+                        className="animate-in fade-in duration-200 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3"
+                      >
                         <p className="text-xs leading-relaxed text-red-400">{submitError}</p>
                       </div>
                     )}
@@ -526,9 +563,9 @@ export default function RecoveryAuditPage() {
               )}
             </div>
 
-            {/* ── Right: Audit promise / signal list ────────────────────── */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+            {/* ── Right: Audit promise / signal list ─────────────────────── */}
+            <div className="space-y-4 lg:col-span-2">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6">
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">
                   What the Audit Looks For
                 </p>
@@ -537,7 +574,7 @@ export default function RecoveryAuditPage() {
                   cash. Each one maps to a specific fix.
                 </p>
 
-                <div className="mt-5 space-y-3">
+                <div className="mt-5 space-y-2.5">
                   {AUDIT_SIGNALS.map(({ icon: Icon, label, desc, color, bg }) => (
                     <div
                       key={label}
@@ -548,14 +585,16 @@ export default function RecoveryAuditPage() {
                       </div>
                       <div>
                         <p className={`text-xs font-bold ${color}`}>{label}</p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">{desc}</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">
+                          {desc}
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Social proof / urgency strip */}
+              {/* Social proof strip */}
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
                 <div className="space-y-3">
                   {[
@@ -570,13 +609,32 @@ export default function RecoveryAuditPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Platform tags */}
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
+                  Works for sellers on
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {["eBay", "Poshmark", "Mercari", "Depop", "Facebook Marketplace", "Whatnot", "Vinted"].map(
+                    (p) => (
+                      <span
+                        key={p}
+                        className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400"
+                      >
+                        {p}
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
             </div>
 
           </div>
         </div>
       </section>
 
-      {/* ── Footer ────────────────────────────────────────────────────────── */}
+      {/* ── Footer ────────────────────────────────────────────────────────────────── */}
       <footer className="border-t border-zinc-800 px-4 py-8 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-2">

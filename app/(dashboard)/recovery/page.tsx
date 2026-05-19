@@ -7,6 +7,7 @@ import { buildRecoveryPlan } from "@/lib/scoring";
 import { prioritizeRecovery } from "@/lib/inventory/prioritization";
 import { ActionCards } from "@/components/recovery/ActionCards";
 import { PriorityQueue } from "@/components/recovery/PriorityQueue";
+import { RecoveryEffectivenessSummary } from "@/components/recovery/RecoveryEffectivenessSummary";
 import { formatCurrency } from "@/lib/utils";
 
 export default function RecoveryPage() {
@@ -69,6 +70,9 @@ export default function RecoveryPage() {
           <p className="mt-0.5 text-xs text-zinc-600">recovery strategies active</p>
         </div>
       </div>
+
+      {/* Recovery Effectiveness (shows only when real data exists) */}
+      <RecoveryEffectivenessSummary />
 
       {/* Priority Queue — ranked by urgency + ROI */}
       <PriorityQueue items={priority} limit={6} />

@@ -2,17 +2,25 @@
 
 import { useReducer, useEffect } from "react";
 import type { ScoringSnapshot } from "@/lib/types";
-import { calcSnapshotSummary } from "@/lib/inventory/snapshots";
+import { calcSnapshotSummary, calcDecayAcceleration } from "@/lib/inventory/snapshots";
 
-type State = { summary: ReturnType<typeof calcSnapshotSummary>; loading: boolean };
+type State = {
+  summary: ReturnType<typeof calcSnapshotSummary>;
+  snapshots: ScoringSnapshot[];
+  loading: boolean;
+};
 type Action = { type: "loaded"; snapshots: ScoringSnapshot[] };
 
-function reducer(state: State, action: Action): State {
-  return { summary: calcSnapshotSummary(action.snapshots), loading: false };
+function reducer(_: State, action: Action): State {
+  return {
+    summary: calcSnapshotSummary(action.snapshots),
+    snapshots: action.snapshots,
+    loading: false,
+  };
 }
 
 export function ScoreTrendBar({ itemId }: { itemId: string }) {
-  const [state, dispatch] = useReducer(reducer, { summary: null, loading: true });
+  const [state, dispatch] = useReducer(reducer, { summary: null, snapshots: [], loading: true });
 
   useEffect(() => {
     let cancelled = false;
@@ -32,10 +40,11 @@ export function ScoreTrendBar({ itemId }: { itemId: string }) {
     return () => { cancelled = true; };
   }, [itemId]);
 
-  const { summary } = state;
+  const { summary, snapshots } = state;
   if (state.loading || !summary || summary.snapshot_count < 2) return null;
 
   const { velocity, trend, is_escalating } = summary;
+  const acceleration = calcDecayAcceleration(snapshots);
 
   // Normalize trend points for mini sparkline (dead_score 0–100)
   const maxScore = Math.max(...trend.map((t) => t.dead_score), 1);
@@ -67,11 +76,18 @@ export function ScoreTrendBar({ itemId }: { itemId: string }) {
         <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">
           Score Trend ({summary.snapshot_count} snapshots)
         </p>
-        {is_escalating && (
-          <span className="rounded border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
-            Escalating
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {acceleration.is_accelerating && (
+            <span className="rounded border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-400">
+              Accelerating ↑{acceleration.acceleration_factor}×
+            </span>
+          )}
+          {is_escalating && (
+            <span className="rounded border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
+              Escalating
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Sparkline */}

@@ -199,3 +199,53 @@ export function getLatestScoreBreakdown(snapshots: ScoringSnapshot[]): ScoreBrea
     total: latest.dead_inventory_score,
   };
 }
+
+// ─── Decay Acceleration ───────────────────────────────────────────────────────
+// Returns true when the worsening rate in the last 7 days is significantly
+// faster than the 30-day average rate (score deteriorating faster than baseline).
+
+export interface DecayAcceleration {
+  is_accelerating: boolean;
+  recent_rate: number;   // points/day in last 7d
+  baseline_rate: number; // points/day over 30d
+  acceleration_factor: number; // recent_rate / baseline_rate
+}
+
+export function calcDecayAcceleration(snapshots: ScoringSnapshot[]): DecayAcceleration {
+  const sorted = [...snapshots].sort(
+    (a, b) => new Date(a.scored_at).getTime() - new Date(b.scored_at).getTime()
+  );
+
+  const msPerDay = 86_400_000;
+  const now = sorted.length > 0
+    ? new Date(sorted[sorted.length - 1].scored_at).getTime()
+    : Date.now();
+
+  const sevenDayAgo = now - 7 * msPerDay;
+  const thirtyDayAgo = now - 30 * msPerDay;
+
+  const recent = sorted.filter((s) => new Date(s.scored_at).getTime() >= sevenDayAgo);
+  const baseline = sorted.filter((s) => new Date(s.scored_at).getTime() >= thirtyDayAgo);
+
+  function rateFromWindow(pts: ScoringSnapshot[]): number {
+    if (pts.length < 2) return 0;
+    const span = Math.max(
+      1,
+      (new Date(pts[pts.length - 1].scored_at).getTime() - new Date(pts[0].scored_at).getTime()) / msPerDay
+    );
+    return (pts[pts.length - 1].dead_inventory_score - pts[0].dead_inventory_score) / span;
+  }
+
+  const recent_rate = rateFromWindow(recent);
+  const baseline_rate = rateFromWindow(baseline);
+
+  const acceleration_factor = baseline_rate > 0.1 ? recent_rate / baseline_rate : recent_rate > 0.5 ? 2 : 1;
+  const is_accelerating = recent_rate > 0.5 && acceleration_factor >= 1.5;
+
+  return {
+    is_accelerating,
+    recent_rate: Math.round(recent_rate * 100) / 100,
+    baseline_rate: Math.round(baseline_rate * 100) / 100,
+    acceleration_factor: Math.round(acceleration_factor * 10) / 10,
+  };
+}

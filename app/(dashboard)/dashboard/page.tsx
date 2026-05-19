@@ -33,16 +33,27 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { items: scored } = useInventory();
+  const { items: scored, loading, isRealData } = useInventory();
   const stats         = useMemo(() => calcDashboardStats(scored), [scored]);
   const recoveryPlan  = useMemo(() => buildRecoveryPlan(scored), [scored]);
   const portfolioHealth = useMemo(() => calcPortfolioHealth(scored), [scored]);
 
-  // Top immediate action — the single thing the seller should do right now
   const topAction = recoveryPlan.find((p) => p.urgency === "immediate");
 
   return (
     <div className="min-h-screen bg-zinc-950">
+
+      {/* ── Data source indicator ────────────────────────────────────────────── */}
+      {!loading && !isRealData && (
+        <div className="flex items-center justify-between border-b border-zinc-800/50 bg-zinc-900/40 px-4 py-2 sm:px-6 lg:px-8">
+          <p className="text-xs text-zinc-600">
+            Demo mode — showing sample inventory.{" "}
+            <Link href="/inventory/import" className="text-[#E935C1] hover:underline">
+              Import your own data →
+            </Link>
+          </p>
+        </div>
+      )}
 
       {/* ── Critical Alert Banner ────────────────────────────────────────────── */}
       {stats.critical_count > 0 && (

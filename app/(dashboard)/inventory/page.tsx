@@ -93,6 +93,12 @@ export default function InventoryPage() {
               </button>
             )}
             <Link
+              href="/inventory/uploads"
+              className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400"
+            >
+              History
+            </Link>
+            <Link
               href="/inventory/import"
               className="flex items-center gap-2 rounded-lg border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-300 transition-colors hover:border-[#E935C1] hover:text-[#E935C1]"
             >

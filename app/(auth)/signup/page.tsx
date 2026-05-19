@@ -8,11 +8,11 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, UserPlus } from "lucide-react";
+import { Loader2, UserPlus, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
+import { signUpAction } from "@/app/actions/auth";
 import { useToast } from "@/components/ui/use-toast";
 
 const schema = z.object({
@@ -30,6 +30,7 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
   const {
     register,
@@ -39,28 +40,53 @@ export default function SignupPage() {
 
   async function onSubmit(data: FormData) {
     setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
-    });
 
-    if (error) {
+    // Point email confirmation to our callback route which exchanges the code
+    const redirectTo = `${window.location.origin}/auth/callback?next=/dashboard`;
+
+    const result = await signUpAction(data.email, data.password, redirectTo);
+
+    if (!result.ok) {
       toast({
         title: "Signup failed",
-        description: error.message,
+        description: result.error,
         variant: "destructive",
       });
       setLoading(false);
       return;
     }
 
-    toast({
-      title: "Account created",
-      description: "Check your email to confirm, then sign in.",
-    });
-    router.push("/login");
+    if (result.requiresConfirmation) {
+      // Email confirmation required — show confirmation state
+      setConfirmed(true);
+    } else {
+      // Auto-confirmed (email confirmations disabled in Supabase settings)
+      toast({ title: "Account created", description: "You're in." });
+      router.push("/dashboard");
+      router.refresh();
+    }
+    setLoading(false);
+  }
+
+  if (confirmed) {
+    return (
+      <div className="w-full max-w-sm">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center">
+          <CheckCircle2 className="mx-auto mb-4 h-10 w-10 text-emerald-400" />
+          <h2 className="text-lg font-black text-zinc-100">Check your email</h2>
+          <p className="mt-2 text-sm text-zinc-500">
+            We sent a confirmation link to your email. Click it to activate your account,
+            then sign in.
+          </p>
+          <Link
+            href="/login"
+            className="mt-6 block text-sm font-semibold text-[#E935C1] hover:text-[#FF2D95]"
+          >
+            Back to sign in →
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -80,6 +106,7 @@ export default function SignupPage() {
               id="email"
               type="email"
               placeholder="you@example.com"
+              autoComplete="email"
               {...register("email")}
             />
             {errors.email && (
@@ -93,6 +120,7 @@ export default function SignupPage() {
               id="password"
               type="password"
               placeholder="8+ characters"
+              autoComplete="new-password"
               {...register("password")}
             />
             {errors.password && (
@@ -106,6 +134,7 @@ export default function SignupPage() {
               id="confirm"
               type="password"
               placeholder="Repeat password"
+              autoComplete="new-password"
               {...register("confirm")}
             />
             {errors.confirm && (
@@ -115,7 +144,10 @@ export default function SignupPage() {
 
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating account…
+              </>
             ) : (
               <>
                 <UserPlus className="h-4 w-4" />

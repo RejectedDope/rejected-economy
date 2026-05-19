@@ -13,7 +13,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/app/actions/auth";
 import { useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
@@ -27,11 +27,10 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
-
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    await signOutAction();
     router.push("/login");
+    router.refresh();
   }
 
   return (

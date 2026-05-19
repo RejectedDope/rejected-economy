@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { scoreItem } from "@/lib/scoring";
 import { dedupeAgainstExisting } from "@/lib/inventory/deduplication";
+import { logger } from "@/lib/logger";
 import type { NormalizedRow } from "@/lib/ingestion/normalize";
 import type { InventoryItem } from "@/lib/types";
 import type { InventoryItemInsert, RecoveryActionType } from "@/lib/supabase/database.types";
@@ -32,7 +33,8 @@ export type ImportResult = {
 
 export async function importInventoryItems(
   rows: NormalizedRow[],
-  checkDuplicates = true
+  checkDuplicates = true,
+  sessionMeta?: { fileName?: string; fileType?: string; fileSizeBytes?: number }
 ): Promise<ImportResult> {
   const supabase = await createClient();
 
@@ -40,9 +42,31 @@ export async function importInventoryItems(
   if (!user) throw new Error("Not authenticated");
 
   const batch_id = crypto.randomUUID();
+  const startedAt = Date.now();
   const errors: string[] = [];
   let skipped = 0;
   let duplicates = 0;
+
+  logger.info("ingestion", "Import started", {
+    userId: user.id,
+    rowCount: rows.length,
+    batchId: batch_id,
+    fileName: sessionMeta?.fileName,
+  });
+
+  // Log upload session
+  const { data: sessionRow } = await supabase.from("upload_sessions").insert({
+    user_id: user.id,
+    file_name: sessionMeta?.fileName ?? "unknown",
+    file_size_bytes: sessionMeta?.fileSizeBytes ?? null,
+    file_type: sessionMeta?.fileType ?? "csv",
+    status: "parsing",
+    rows_in_file: rows.length,
+    batch_id,
+    started_at: new Date().toISOString(),
+  }).select("id").single();
+
+  const sessionId = sessionRow?.id as string | undefined;
 
   // Fetch existing active inventory for dedup
   let existingItems: InventoryItem[] = [];
@@ -149,6 +173,30 @@ export async function importInventoryItems(
       inserted += chunk.length;
     }
   }
+
+  // Finalize upload session
+  const durationMs = Date.now() - startedAt;
+  if (sessionId) {
+    await supabase.from("upload_sessions").update({
+      status: errors.length === 0 ? "complete" : inserted > 0 ? "partial" : "failed",
+      rows_imported: inserted,
+      rows_failed: skipped,
+      rows_duplicates: duplicates,
+      completed_at: new Date().toISOString(),
+      duration_ms: durationMs,
+      error_log: errors.length > 0 ? errors : null,
+    }).eq("id", sessionId);
+  }
+
+  logger.info("ingestion", "Import complete", {
+    userId: user.id,
+    batchId: batch_id,
+    inserted,
+    skipped,
+    duplicates,
+    errors: errors.length,
+    durationMs,
+  });
 
   return { inserted, skipped, duplicates, errors, batch_id };
 }

@@ -25,6 +25,29 @@ interface ReviewTableProps {
   importing: boolean;
 }
 
+function importQualityScore(row: ReviewRow): number {
+  let score = 50;
+  if (row.item_specifics_complete) score += 15;
+  if (row.image_count >= 4) score += 10;
+  if (row.image_count >= 8) score += 5;
+  if (row.title_keyword_strength >= 60) score += 10;
+  if (row.shipping_type === "free") score += 5;
+  if (row.days_listed > 90) score -= 15;
+  if (row.days_listed > 180) score -= 15;
+  if (row.views > 0 && row.watchers === 0) score -= 5;
+  return Math.max(0, Math.min(100, score));
+}
+
+function QualityDot({ score }: { score: number }) {
+  const color = score >= 70 ? "bg-emerald-400" : score >= 50 ? "bg-yellow-400" : "bg-red-400";
+  return (
+    <span
+      title={`Import quality: ${score}/100`}
+      className={`inline-block h-2 w-2 rounded-full shrink-0 ${color}`}
+    />
+  );
+}
+
 function WarningDot({ warnings }: { warnings: NormalizationWarning[] }) {
   if (!warnings.length) return null;
   return (
@@ -207,6 +230,7 @@ export function ReviewTable({
                     <td className="px-4 py-3 text-xs text-zinc-600">{row.rowIndex}</td>
                     <td className="max-w-[280px] px-4 py-3">
                       <div className="flex items-center gap-2">
+                        <QualityDot score={importQualityScore(row)} />
                         <WarningDot warnings={row.warnings} />
                         <span className="truncate text-xs text-zinc-200">{row.title}</span>
                       </div>

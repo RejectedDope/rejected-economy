@@ -8,6 +8,7 @@ import { prioritizeRecovery } from "@/lib/inventory/prioritization";
 import { ActionCards } from "@/components/recovery/ActionCards";
 import { PriorityQueue } from "@/components/recovery/PriorityQueue";
 import { RecoveryEffectivenessSummary } from "@/components/recovery/RecoveryEffectivenessSummary";
+import { ActionEffectivenessTable } from "@/components/recovery/ActionEffectivenessTable";
 import { formatCurrency } from "@/lib/utils";
 
 export default function RecoveryPage() {
@@ -73,6 +74,9 @@ export default function RecoveryPage() {
 
       {/* Recovery Effectiveness (shows only when real data exists) */}
       <RecoveryEffectivenessSummary />
+
+      {/* Action Effectiveness (shows only when logged actions exist) */}
+      <ActionEffectivenessTable />
 
       {/* Priority Queue — ranked by urgency + ROI */}
       <PriorityQueue items={priority} limit={6} />

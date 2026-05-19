@@ -252,7 +252,70 @@ export function getLiquidationCandidates(items: ScoredItem[]): ScoredItem[] {
       (item.days_listed >= 180 && item.dead_inventory_score >= 75)
   );
 
-  // Sort by days_listed desc
   candidates.sort((a, b) => b.days_listed - a.days_listed);
   return candidates;
+}
+
+// ─── Escalation Detection ─────────────────────────────────────────────────────
+// Identifies items that need immediate attention beyond normal prioritization.
+// Returns items with escalation reason for surfacing in the UI.
+
+export interface EscalatedItem {
+  item: ScoredItem;
+  reason: string;
+  severity: "urgent" | "critical";
+}
+
+export function detectEscalations(items: ScoredItem[]): EscalatedItem[] {
+  const active = items.filter((i) => i.status === "active");
+  const results: EscalatedItem[] = [];
+
+  for (const item of active) {
+    // Year-plus listing — market has permanently rejected at current price
+    if (item.days_listed >= 365) {
+      results.push({
+        item,
+        reason: `${item.days_listed}d listed — market rejection confirmed`,
+        severity: "critical",
+      });
+      continue;
+    }
+
+    // Critical score + significant cash trapped
+    if (item.dead_inventory_score >= 80 && item.price >= 25) {
+      results.push({
+        item,
+        reason: `Score ${item.dead_inventory_score}/100 · $${item.price.toFixed(0)} trapped`,
+        severity: "critical",
+      });
+      continue;
+    }
+
+    // High views, zero watchers, aged listing — price rejection pattern
+    if (item.views >= 100 && item.watchers === 0 && item.days_listed >= 60) {
+      results.push({
+        item,
+        reason: `${item.views} views, 0 watchers — price rejection signal`,
+        severity: "urgent",
+      });
+      continue;
+    }
+
+    // High dead score without any engagement
+    if (item.dead_inventory_score >= 70 && item.views <= 5 && item.days_listed >= 90) {
+      results.push({
+        item,
+        reason: `Score ${item.dead_inventory_score}/100 · invisible listing`,
+        severity: "urgent",
+      });
+    }
+  }
+
+  // Sort: critical first, then by dead score desc
+  results.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === "critical" ? -1 : 1;
+    return b.item.dead_inventory_score - a.item.dead_inventory_score;
+  });
+
+  return results;
 }

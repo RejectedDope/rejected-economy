@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Package, Search, Upload, RefreshCw } from "lucide-react";
+import { Package, Search, Upload, RefreshCw, AlertTriangle } from "lucide-react";
 import { useInventory } from "@/lib/hooks/useInventory";
 import { InventoryTable } from "@/components/analyzer/InventoryTable";
+import { detectEscalations } from "@/lib/inventory/prioritization";
 import { formatCurrency } from "@/lib/utils";
 import type { ScoredItem, VisibilityRisk, Platform } from "@/lib/types";
 
@@ -71,6 +72,8 @@ export default function InventoryPage() {
 
   const trappedSum = filtered.reduce((sum, i) => sum + i.price, 0);
 
+  const escalations = useMemo(() => detectEscalations(allItems).slice(0, 3), [allItems]);
+
   return (
     <div className="px-4 py-8 sm:px-6 lg:px-8">
       {/* Page Header */}
@@ -104,6 +107,27 @@ export default function InventoryPage() {
             : "Full view of every item — scored, sorted, ready to work."}
         </p>
       </div>
+
+      {/* Escalation Alerts */}
+      {escalations.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {escalations.map(({ item, reason, severity }) => (
+            <Link
+              key={item.id}
+              href={`/inventory/${item.id}`}
+              className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:opacity-90 ${
+                severity === "critical"
+                  ? "border-red-500/30 bg-red-500/5 text-red-300"
+                  : "border-orange-500/30 bg-orange-500/5 text-orange-300"
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate font-semibold">{item.title}</span>
+              <span className="shrink-0 text-xs opacity-70">{reason}</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Filter Controls */}
       <div className="mb-5 space-y-3">

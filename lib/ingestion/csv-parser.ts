@@ -197,6 +197,88 @@ export function parseCSVFile(
 
 // ─── Parse from ArrayBuffer (for XLSX sheet → CSV export path) ───────────────
 
+// ─── Extract Raw Headers ──────────────────────────────────────────────────────
+// Returns original (non-normalized) column headers from a CSV file.
+// Used to power the ColumnMapper UI before full parse.
+
+export function parseCSVHeaders(file: File): Promise<string[]> {
+  return new Promise((resolve) => {
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      preview: 1,
+      complete(results) {
+        resolve(results.meta.fields ?? []);
+      },
+      error() {
+        resolve([]);
+      },
+    });
+  });
+}
+
+// ─── Parse with Custom Column Mapping ────────────────────────────────────────
+// Like parseCSVFile but accepts a user-confirmed ColumnMapping that overrides
+// the default COLUMN_ALIASES. Mapping keys are raw CSV header names.
+
+export function parseCSVFileWithMapping(
+  file: File,
+  customMapping: Record<string, string>,
+  onComplete: (result: CsvParseResult) => void
+): void {
+  const combinedAliases: Record<string, string> = { ...COLUMN_ALIASES };
+  for (const [raw, target] of Object.entries(customMapping)) {
+    if (target) combinedAliases[raw.trim().toLowerCase()] = target;
+  }
+
+  function mappedHeader(raw: string): string {
+    const key = raw.trim().toLowerCase();
+    return combinedAliases[key] ?? key.replace(/\s+/g, "_");
+  }
+
+  const rows: NormalizedRow[] = [];
+  const errors: CsvRowError[] = [];
+  const warnings: CsvRowError[] = [];
+  let totalParsed = 0;
+  let truncated = false;
+
+  Papa.parse<Record<string, string>>(file, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: mappedHeader,
+    complete(results) {
+      const raw = results.data;
+      if (raw.length > CSV_MAX_ROWS) truncated = true;
+      const capped = raw.slice(0, CSV_MAX_ROWS);
+      totalParsed = capped.length;
+
+      capped.forEach((rawRow, idx) => {
+        const rowNum = idx + 1;
+        const r = normalizeInventoryRow(rawRow);
+        if (!r.ok) {
+          errors.push(...r.errors.map((e) => ({ rowIndex: rowNum, message: e })));
+          r.warnings.forEach((w) => warnings.push({ rowIndex: rowNum, field: w.field, message: w.issue }));
+        } else {
+          rows.push(r.row);
+          r.row.warnings.forEach((w) => warnings.push({ rowIndex: rowNum, field: w.field, message: w.issue }));
+        }
+      });
+
+      onComplete({
+        ok: rows.length > 0,
+        rows,
+        errors,
+        warnings,
+        skipped: totalParsed - rows.length,
+        totalParsed,
+        truncated,
+      });
+    },
+    error(err) {
+      onComplete({ ok: false, rows: [], errors: [{ rowIndex: 0, message: err.message }], warnings: [], skipped: 0, totalParsed: 0, truncated: false });
+    },
+  });
+}
+
 export function parseCSVString(csvText: string, sourceName: string): CsvParseResult {
   const rows: NormalizedRow[] = [];
   const errors: CsvRowError[] = [];

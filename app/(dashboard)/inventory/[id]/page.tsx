@@ -21,6 +21,7 @@ import { useInventoryItem } from "@/lib/hooks/useInventoryItem";
 import { IntelligencePanel } from "@/components/analyzer/IntelligencePanel";
 import { RecoveryActionPanel } from "@/components/recovery/RecoveryActionPanel";
 import { ItemRecoveryLog } from "@/components/recovery/ItemRecoveryLog";
+import { ScoreTrendBar } from "@/components/inventory/ScoreTrendBar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatCurrencyDecimal } from "@/lib/utils";
@@ -546,6 +547,9 @@ export default function ItemDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Score Trend */}
+          <ScoreTrendBar itemId={item.id} />
 
           {/* Recovery Execution */}
           <RecoveryActionPanel item={item} />

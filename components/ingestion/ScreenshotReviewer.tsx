@@ -133,6 +133,14 @@ export function ScreenshotReviewer({ file, onExtracted }: ScreenshotReviewerProp
                   onChange={(v) => handleFieldChange("platform", v)}
                 />
               </div>
+              {fields.category && (
+                <Field
+                  label="Category (detected)"
+                  value={fields.category}
+                  onChange={(v) => handleFieldChange("category", v)}
+                  placeholder="e.g. Shoes"
+                />
+              )}
               <div className="grid grid-cols-3 gap-2">
                 <Field
                   label="Days Listed"

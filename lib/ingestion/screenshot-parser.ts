@@ -95,6 +95,7 @@ export type ExtractedListingFields = {
   title?: string;
   price?: string;
   platform?: string;
+  category?: string;
   days_listed?: string;
   views?: string;
   watchers?: string;

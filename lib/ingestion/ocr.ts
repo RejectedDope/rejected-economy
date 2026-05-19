@@ -65,6 +65,44 @@ function extractMetric(text: string, keywords: string[]): string | undefined {
   return undefined;
 }
 
+// ─── Category normalization ────────────────────────────────────────────────────
+
+const CATEGORY_KEYWORDS: Array<[RegExp, string]> = [
+  [/sneaker|shoe|boot|jordan|yeezy|nike|adidas|new balance/i, "Shoes"],
+  [/jacket|coat|hoodie|sweater|pullover|outerwear/i, "Tops"],
+  [/shirt|tee|t-shirt|polo|blouse/i, "Tops"],
+  [/pant|jean|denim|trouser|shorts|legging/i, "Bottoms"],
+  [/dress|skirt|romper/i, "Dresses"],
+  [/bag|purse|handbag|tote|backpack|wallet/i, "Bags"],
+  [/watch|jewelry|ring|necklace|bracelet/i, "Accessories"],
+  [/hat|cap|beanie|snapback/i, "Accessories"],
+  [/video game|console|playstation|xbox|nintendo|ps4|ps5/i, "Video Games"],
+  [/phone|iphone|samsung|android|tablet|ipad/i, "Electronics"],
+  [/vinyl|record|cd|cassette/i, "Music"],
+  [/book|novel|manga|comic/i, "Books"],
+  [/toy|lego|action figure|figurine|doll/i, "Toys"],
+  [/card|pokemon|trading card|sports card/i, "Trading Cards"],
+];
+
+export function normalizeCategory(text: string): string | undefined {
+  for (const [pat, cat] of CATEGORY_KEYWORDS) {
+    if (pat.test(text)) return cat;
+  }
+  return undefined;
+}
+
+// ─── Truncated title detection ────────────────────────────────────────────────
+// Titles that end mid-word or with an ellipsis are likely OCR artifacts.
+
+function isTruncated(title: string): boolean {
+  if (!title) return false;
+  if (title.endsWith("...") || title.endsWith("…")) return true;
+  // Last word < 3 chars and title is shorter than 40 chars (likely cut off)
+  const words = title.trim().split(/\s+/);
+  const lastWord = words[words.length - 1];
+  return title.length < 40 && lastWord.length <= 2 && !/[.!?)]$/.test(title);
+}
+
 // ─── Title extraction ──────────────────────────────────────────────────────────
 // Heuristic: longest line that isn't a URL or pure number, in the upper 40% of text.
 
@@ -76,12 +114,21 @@ function extractTitle(lines: string[]): string | undefined {
       l.length < 120 &&
       !/^[\d$,.\s]+$/.test(l) &&
       !l.startsWith("http") &&
-      !/^\d+$/.test(l)
+      !/^\d+$/.test(l) &&
+      // Exclude obvious UI chrome
+      !/^(sold|make offer|buy it now|add to cart|save|share|watch|report|back|menu|search|home)$/i.test(l.trim())
     );
 
   if (candidates.length === 0) return undefined;
-  // Prefer lines in the first half (title is usually near top)
-  return candidates[0];
+
+  // Sort by length desc (longer = more descriptive title) but prefer non-truncated
+  const sorted = [...candidates].sort((a, b) => {
+    const aTrunc = isTruncated(a) ? -10 : 0;
+    const bTrunc = isTruncated(b) ? -10 : 0;
+    return b.length + bTrunc - (a.length + aTrunc);
+  });
+
+  return sorted[0];
 }
 
 // ─── Confidence scoring ────────────────────────────────────────────────────────
@@ -111,10 +158,16 @@ export async function extractFromScreenshot(
     const rawText = result.data.text;
     const lines = rawText.split("\n").filter((l) => l.trim().length > 0);
 
+    const title = extractTitle(lines);
+    const platform = detectPlatform(rawText);
+    // Infer category from title + full text
+    const category = normalizeCategory(`${title ?? ""} ${rawText}`);
+
     const fields = {
-      title: extractTitle(lines),
+      title,
       price: extractPrice(rawText),
-      platform: detectPlatform(rawText),
+      platform,
+      category,
       days_listed: extractDaysListed(rawText),
       views: extractMetric(rawText, ["views", "page views"]),
       watchers: extractMetric(rawText, ["watchers", "watching"]),

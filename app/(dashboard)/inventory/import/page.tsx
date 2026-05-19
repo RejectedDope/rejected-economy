@@ -7,7 +7,14 @@ import Link from "next/link";
 import { FileUploader, type UploadedFile } from "@/components/ingestion/FileUploader";
 import { ReviewTable, type ReviewRow } from "@/components/ingestion/ReviewTable";
 import { ScreenshotReviewer } from "@/components/ingestion/ScreenshotReviewer";
-import { parseCSVFile, type CsvParseResult, type CsvRowError } from "@/lib/ingestion/csv-parser";
+import { ColumnMapper, type ColumnMapping } from "@/components/ingestion/ColumnMapper";
+import {
+  parseCSVFile,
+  parseCSVHeaders,
+  parseCSVFileWithMapping,
+  type CsvParseResult,
+  type CsvRowError,
+} from "@/lib/ingestion/csv-parser";
 import { validateScreenshotFile, type ExtractedListingFields } from "@/lib/ingestion/screenshot-parser";
 import { normalizePlatform, normalizePrice } from "@/lib/ingestion/normalize";
 import { detectDuplicates, type NormalizedRow } from "@/lib/ingestion/normalize";
@@ -15,7 +22,7 @@ import { importInventoryItems } from "@/app/actions/inventory";
 import { parseXLSXAction } from "@/app/actions/import";
 import { logger } from "@/lib/logger";
 
-type Stage = "upload" | "review" | "done";
+type Stage = "upload" | "map" | "review" | "done";
 
 type ImportState = {
   result: CsvParseResult | null;
@@ -36,7 +43,7 @@ function ocrFieldsToNormalizedRow(fields: ExtractedListingFields): NormalizedRow
   return {
     title: fields.title ?? "Untitled Screenshot Import",
     platform: normalizePlatform(fields.platform),
-    category: "Other",
+    category: fields.category ?? "Other",
     price: priceResult.value,
     days_listed: fields.days_listed ? parseInt(fields.days_listed, 10) || 0 : 0,
     item_specifics_complete: false,
@@ -79,6 +86,9 @@ export default function ImportPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [parseError, setParseError] = useState<string | null>(null);
+  // Column mapping state
+  const [pendingCsvFile, setPendingCsvFile] = useState<File | null>(null);
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
 
   const handleFilesAccepted = useCallback((files: UploadedFile[]) => {
     setParseError(null);
@@ -133,33 +143,40 @@ export default function ImportPage() {
       return;
     }
 
-    parseCSVFile(first.file, (result) => {
-      logger.info("ingestion", "CSV parsed in browser", {
-        file: first.file.name,
-        rows: result.totalParsed,
-        ok: result.rows.length,
-        errors: result.errors.length,
-      });
-
-      if (result.rows.length === 0 && result.errors.length > 0) {
-        setParseError(
-          `Could not parse any rows. Check that the file is a valid CSV inventory export.`
-        );
-        return;
-      }
-
-      const reviewRows = buildReviewRows(result.rows);
-
-      setImportState({
-        result,
-        rows: reviewRows,
-        errors: result.errors,
-        warnings: result.warnings,
-        screenshotCount: screenshots.length,
-      });
-      setStage("review");
+    // Extract headers first to enable column mapping step
+    parseCSVHeaders(first.file).then((headers) => {
+      setPendingCsvFile(first.file);
+      setDetectedHeaders(headers);
+      setImportState((prev) => ({ ...prev, screenshotCount: screenshots.length }));
+      setStage("map");
     });
   }, []);
+
+  function processCsvWithMapping(file: File, mapping: ColumnMapping | null) {
+    const parse = mapping
+      ? (cb: Parameters<typeof parseCSVFile>[1]) => parseCSVFileWithMapping(file, mapping, cb)
+      : (cb: Parameters<typeof parseCSVFile>[1]) => parseCSVFile(file, cb);
+
+    parse((result) => {
+      logger.info("ingestion", "CSV parsed", { file: file.name, rows: result.totalParsed, ok: result.rows.length });
+      if (result.rows.length === 0 && result.errors.length > 0) {
+        setParseError("Could not parse any rows. Check column mapping or file format.");
+        setStage("upload");
+        return;
+      }
+      const reviewRows = buildReviewRows(result.rows);
+      setImportState((prev) => ({ ...prev, result, rows: reviewRows, errors: result.errors, warnings: result.warnings }));
+      setStage("review");
+    });
+  }
+
+  function handleMappingConfirmed(mapping: ColumnMapping) {
+    if (pendingCsvFile) processCsvWithMapping(pendingCsvFile, mapping);
+  }
+
+  function handleMappingSkipped() {
+    if (pendingCsvFile) processCsvWithMapping(pendingCsvFile, null);
+  }
 
   function handleApproveAll() {
     setImportState((prev) => ({
@@ -191,13 +208,21 @@ export default function ImportPage() {
   async function handleImport(approvedRows: ReviewRow[]) {
     setIsImporting(true);
     try {
-      const normalizedRows: NormalizedRow[] = approvedRows.map(({ rowIndex: _r, reviewStatus: _s, isDuplicate: _d, duplicateOfRow: _o, ...row }) => row as NormalizedRow);
+      const normalizedRows: NormalizedRow[] = approvedRows.map(
+        ({ rowIndex: _r, reviewStatus: _s, isDuplicate: _d, duplicateOfRow: _o, ...row }) =>
+          row as NormalizedRow
+      );
       const result = await importInventoryItems(normalizedRows, true);
       setImportedCount(result.inserted);
       if (result.errors.length > 0) {
         logger.warn("ingestion", "Import completed with errors", { errors: result.errors });
       }
       logger.info("ingestion", "Import complete", { inserted: result.inserted, skipped: result.skipped, duplicates: result.duplicates });
+      // Trigger portfolio snapshot asynchronously — don't block the done state
+      import("@/app/actions/snapshots").then(({ writePortfolioSnapshot, writeItemSnapshots }) => {
+        writePortfolioSnapshot("import_trigger").catch(() => {});
+        writeItemSnapshots().catch(() => {});
+      }).catch(() => {});
       setStage("done");
     } catch (err) {
       logger.error("ingestion", "Import failed", { error: String(err) });
@@ -233,10 +258,11 @@ export default function ImportPage() {
       <div className="flex items-center gap-4">
         {[
           { id: "upload", label: "Upload" },
+          { id: "map", label: "Map Columns" },
           { id: "review", label: "Review" },
           { id: "done", label: "Done" },
         ].map((step, idx) => {
-          const stages: Stage[] = ["upload", "review", "done"];
+          const stages: Stage[] = ["upload", "map", "review", "done"];
           const current = stages.indexOf(stage);
           const stepIdx = stages.indexOf(step.id as Stage);
           return (
@@ -259,7 +285,7 @@ export default function ImportPage() {
               >
                 {step.label}
               </span>
-              {idx < 2 && <div className="h-px w-8 bg-zinc-800" />}
+              {idx < 3 && <div className="h-px w-8 bg-zinc-800" />}
             </div>
           );
         })}
@@ -276,6 +302,14 @@ export default function ImportPage() {
             </div>
           )}
         </div>
+      )}
+
+      {stage === "map" && detectedHeaders.length > 0 && (
+        <ColumnMapper
+          detectedColumns={detectedHeaders}
+          onMappingConfirmed={handleMappingConfirmed}
+          onSkip={handleMappingSkipped}
+        />
       )}
 
       {stage === "review" && (

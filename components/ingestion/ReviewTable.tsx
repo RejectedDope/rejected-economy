@@ -89,11 +89,22 @@ export function ReviewTable({
 }: ReviewTableProps) {
   const [showExcluded, setShowExcluded] = useState(false);
   const [showErrors, setShowErrors] = useState(errors.length > 0);
+  const [includeDuplicates, setIncludeDuplicates] = useState(false);
 
-  const approved = rows.filter((r) => r.reviewStatus === "approved" && !r.isDuplicate);
-  const excluded = rows.filter((r) => r.reviewStatus === "excluded");
   const duplicates = rows.filter((r) => r.isDuplicate);
+  const approved = rows.filter((r) =>
+    r.reviewStatus === "approved" && (includeDuplicates || !r.isDuplicate)
+  );
+  const excluded = rows.filter((r) => r.reviewStatus === "excluded");
   const withWarnings = rows.filter((r) => r.warnings.length > 0);
+
+  // Import confidence: avg quality score of approved rows
+  const avgQuality = approved.length > 0
+    ? Math.round(approved.reduce((s, r) => s + importQualityScore(r), 0) / approved.length)
+    : 0;
+  const confidenceLabel = avgQuality >= 70 ? "High" : avgQuality >= 50 ? "Medium" : "Low";
+  const confidenceColor = avgQuality >= 70 ? "text-emerald-400" : avgQuality >= 50 ? "text-yellow-400" : "text-orange-400";
+  const confidenceBarColor = avgQuality >= 70 ? "bg-emerald-400" : avgQuality >= 50 ? "bg-yellow-400" : "bg-orange-400";
 
   const visible = useMemo(
     () =>
@@ -114,6 +125,22 @@ export function ReviewTable({
 
   return (
     <div className="space-y-5">
+      {/* Import confidence indicator */}
+      {approved.length > 0 && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-bold uppercase tracking-widest text-zinc-600">Import Confidence</span>
+            <span className={`text-xs font-bold ${confidenceColor}`}>{confidenceLabel} — {avgQuality}/100</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+            <div className={`h-full rounded-full transition-all ${confidenceBarColor}`} style={{ width: `${avgQuality}%` }} />
+          </div>
+          <p className="mt-1.5 text-[10px] text-zinc-600">
+            Based on title quality, photo count, specifics completeness, and listing age across {approved.length} rows.
+          </p>
+        </div>
+      )}
+
       {/* Summary bar */}
       <div className="flex flex-wrap gap-3">
         <span className="inline-flex items-center gap-1.5 rounded border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-bold text-emerald-400">
@@ -180,13 +207,25 @@ export function ReviewTable({
       )}
 
       {/* Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={onApproveAll}
           className="rounded border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-400 transition-colors hover:bg-emerald-400/20"
         >
           Approve all
         </button>
+        {duplicates.length > 0 && (
+          <button
+            onClick={() => setIncludeDuplicates((v) => !v)}
+            className={`rounded border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              includeDuplicates
+                ? "border-purple-400/40 bg-purple-400/15 text-purple-400"
+                : "border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+            }`}
+          >
+            {includeDuplicates ? `Including ${duplicates.length} dupes` : `Include ${duplicates.length} dupes`}
+          </button>
+        )}
         <button
           onClick={() => setShowExcluded((v) => !v)}
           className="flex items-center gap-1.5 rounded border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-400 transition-colors hover:border-zinc-600"
@@ -291,11 +330,12 @@ export function ReviewTable({
             Import {approved.length} listing{approved.length !== 1 ? "s" : ""}
           </p>
           <p className="text-xs text-zinc-600">
-            {excluded.length > 0
-              ? `${excluded.length} excluded · ${duplicates.length} duplicates skipped`
+            {excluded.length > 0 && `${excluded.length} excluded · `}
+            {!includeDuplicates && duplicates.length > 0
+              ? `${duplicates.length} duplicates skipped`
               : duplicates.length > 0
-              ? `${duplicates.length} duplicates will be skipped`
-              : "All rows will be imported"}
+              ? `${duplicates.length} duplicates included`
+              : excluded.length === 0 ? "All rows will be imported" : ""}
           </p>
         </div>
         <button

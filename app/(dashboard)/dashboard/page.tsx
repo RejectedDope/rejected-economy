@@ -324,6 +324,29 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* ── Stale Inventory Alert ─────────────────────────────────── */}
+            {stats.stale_count > 0 && stats.stale_cash > 0 && (
+              <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-zinc-700/60 bg-zinc-900 px-5 py-3.5">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-4 w-4 shrink-0 text-zinc-500" />
+                  <div>
+                    <p className="text-xs font-bold text-zinc-300">
+                      {stats.stale_count} listings have been sitting 60+ days
+                    </p>
+                    <p className="text-xs text-zinc-600">
+                      {formatCurrency(stats.stale_cash)} trapped in stale inventory — algorithm visibility is declining
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/recovery"
+                  className="shrink-0 text-xs font-bold text-[#E935C1] hover:underline"
+                >
+                  Recovery Plan →
+                </Link>
+              </div>
+            )}
+
             {/* ── Recovery Opportunity Strip ────────────────────────────── */}
             {recoveryPlan.length > 0 && (
               <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">

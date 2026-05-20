@@ -4,6 +4,7 @@
 
 import type { Platform, ShippingType } from "@/lib/types";
 
+
 // ─── Platform Normalization ───────────────────────────────────────────────────
 
 const PLATFORM_MAP: Record<string, Platform> = {
@@ -79,6 +80,36 @@ export function normalizeDaysListed(
     return { ok: true, value: 0 };
   }
   return normalizePositiveInt(raw, 3650);
+}
+
+// ─── Date → Days Listed ───────────────────────────────────────────────────────
+// Converts a listing date string to days-since-listed.
+// Accepts ISO 8601, MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD, MMM DD YYYY, etc.
+
+export function dateStringToDaysListed(raw: string | undefined | null): IntNormResult {
+  if (!raw || raw.trim() === "") return { ok: true, value: 0 };
+
+  const s = raw.trim();
+
+  // Try native Date parsing (handles ISO 8601 and many locale formats)
+  let d = new Date(s);
+
+  // If native fails, try MM/DD/YYYY
+  if (isNaN(d.getTime())) {
+    const parts = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (parts) {
+      const [, m, day, y] = parts;
+      const year = y.length === 2 ? `20${y}` : y;
+      d = new Date(`${year}-${m.padStart(2, "0")}-${day.padStart(2, "0")}`);
+    }
+  }
+
+  if (isNaN(d.getTime())) return { ok: true, value: 0 };
+
+  const msPerDay = 86_400_000;
+  const days = Math.round((Date.now() - d.getTime()) / msPerDay);
+  if (days < 0) return { ok: true, value: 0 };
+  return { ok: true, value: Math.min(days, 3650) };
 }
 
 // ─── Title Normalization ──────────────────────────────────────────────────────
@@ -254,16 +285,7 @@ export function normalizeInventoryRow(raw: Record<string, unknown>): RowNormResu
     titleResult.warnings.forEach((w) => warnings.push({ field: "title", issue: w }));
   }
 
-  // Price
-  const priceResult = normalizePrice(raw.price as string);
-  let price = 0;
-  if (!priceResult.ok) {
-    errors.push(`price: ${priceResult.reason}`);
-  } else {
-    price = priceResult.value;
-  }
-
-  // Original price (optional)
+  // Original price (resolve first so price can fall back to it)
   let original_price: number | undefined;
   if (raw.original_price !== undefined && raw.original_price !== "") {
     const ogResult = normalizePrice(raw.original_price as string);
@@ -274,11 +296,31 @@ export function normalizeInventoryRow(raw: Record<string, unknown>): RowNormResu
     }
   }
 
-  // Days listed
-  const daysResult = normalizeDaysListed(raw.days_listed as string);
-  const days_listed = daysResult.ok ? daysResult.value : 0;
-  if (!daysResult.ok) {
-    warnings.push({ field: "days_listed", issue: daysResult.reason });
+  // Price — if raw.price is missing, fall back to original_price with a warning
+  const rawPrice = raw.price !== undefined && raw.price !== "" ? raw.price : raw.original_price;
+  const priceResult = normalizePrice(rawPrice as string);
+  let price = 0;
+  if (!priceResult.ok) {
+    errors.push(`price: ${priceResult.reason}`);
+  } else {
+    price = priceResult.value;
+    if (raw.price === undefined || raw.price === "") {
+      warnings.push({ field: "price", issue: "price_inferred_from_original_price" });
+    }
+  }
+
+  // Days listed — prefer days_listed integer; fall back to listed_date string
+  let days_listed = 0;
+  if (raw.days_listed !== undefined && raw.days_listed !== "") {
+    const daysResult = normalizeDaysListed(raw.days_listed as string);
+    days_listed = daysResult.ok ? daysResult.value : 0;
+    if (!daysResult.ok) warnings.push({ field: "days_listed", issue: daysResult.reason });
+  } else if (raw.listed_date !== undefined && raw.listed_date !== "") {
+    const dateResult = dateStringToDaysListed(raw.listed_date as string);
+    days_listed = dateResult.ok ? dateResult.value : 0;
+    if (days_listed > 0) {
+      warnings.push({ field: "days_listed", issue: `inferred_from_date: ${String(raw.listed_date)}` });
+    }
   }
 
   // Image count

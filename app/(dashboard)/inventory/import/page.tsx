@@ -12,6 +12,8 @@ import {
   parseCSVFile,
   parseCSVHeaders,
   parseCSVFileWithMapping,
+  detectMappedFields,
+  detectPlatformFromFilename,
   type CsvParseResult,
   type CsvRowError,
 } from "@/lib/ingestion/csv-parser";
@@ -161,8 +163,22 @@ export default function ImportPage() {
 
     parse((result) => {
       logger.info("ingestion", "CSV parsed", { file: file.name, rows: result.totalParsed, ok: result.rows.length });
-      if (result.rows.length === 0 && result.errors.length > 0) {
-        setParseError("Could not parse any rows. Check column mapping or file format.");
+      if (result.rows.length === 0) {
+        // Surface what went wrong so the user can act
+        const topErrors = result.errors.slice(0, 3).map((e) => e.message).join("; ");
+        const hint = detectMappedFields(detectedHeaders);
+        const missing: string[] = [];
+        if (!hint.hasTitle) missing.push("title");
+        if (!hint.hasPrice) missing.push("price");
+        const missingMsg = missing.length > 0
+          ? ` Missing required columns: ${missing.join(", ")}.`
+          : "";
+        const platformHint = detectPlatformFromFilename(file.name);
+        const platformMsg = platformHint ? ` Platform detected: ${platformHint}.` : "";
+        setParseError(
+          `No rows could be imported.${missingMsg}${platformMsg}` +
+          (topErrors ? ` Errors: ${topErrors}` : " Try re-mapping columns.")
+        );
         setStage("upload");
         return;
       }

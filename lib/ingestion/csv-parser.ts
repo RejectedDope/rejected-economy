@@ -27,67 +27,118 @@ export type CsvRowError = {
 
 // ─── Column Aliases ───────────────────────────────────────────────────────────
 // Maps common export column names → our internal field names.
-// Both eBay Seller Hub and Poshmark CSV exports are covered.
+// Covers: eBay Seller Hub, Poshmark, Mercari, Depop, StockX, GOAT, generic.
 
 const COLUMN_ALIASES: Record<string, string> = {
-  // Title variants
+  // ── Title ──────────────────────────────────────────────────────────────────
+  "title": "title",
   "item title": "title",
   "listing title": "title",
-  "title": "title",
+  "listing name": "title",       // Poshmark
+  "item name": "title",
+  "product name": "title",
+  "name": "title",
+  "description": "title",       // fallback for minimal exports
 
-  // Price variants
+  // ── Price ──────────────────────────────────────────────────────────────────
+  "price": "price",
   "current price": "price",
   "buy it now price": "price",
+  "buy it now": "price",
   "listing price": "price",
-  "price": "price",
-  "sold price": "price",
+  "selling price": "price",
+  "sale price": "price",
+  "ask price": "price",
+  "lowest ask": "price",         // StockX
+  "ask": "price",                // GOAT
+  "net proceeds": "price",       // Poshmark net (close enough)
+  "amount": "price",
 
-  // Original price
-  "start price": "original_price",
+  // ── Original / retail price ────────────────────────────────────────────────
   "original price": "original_price",
   "original_price": "original_price",
+  "start price": "original_price",  // eBay Seller Hub
+  "retail price": "original_price",
+  "msrp": "original_price",
+  "cost": "original_price",
+  "cost basis": "original_price",
 
-  // Platform
+  // ── Platform ───────────────────────────────────────────────────────────────
   "platform": "platform",
   "marketplace": "platform",
   "site": "platform",
+  "source": "platform",
 
-  // Category
+  // ── Category ───────────────────────────────────────────────────────────────
   "category": "category",
   "ebay category": "category",
   "item category": "category",
+  "department": "category",
+  "type": "category",
+  "product type": "category",
 
-  // Days listed
+  // ── Days listed / date ─────────────────────────────────────────────────────
   "days listed": "days_listed",
   "days_listed": "days_listed",
   "age": "days_listed",
   "listing age": "days_listed",
+  "listed date": "listed_date",  // will convert to days_listed
+  "date listed": "listed_date",
+  "list date": "listed_date",
+  "created": "listed_date",
+  "created date": "listed_date",
+  "date created": "listed_date",
+  "posted": "listed_date",
+  "posted date": "listed_date",
+  "start date": "listed_date",   // eBay Seller Hub
+  "listing date": "listed_date",
+  "listed": "listed_date",
 
-  // Photos
+  // ── Photos ─────────────────────────────────────────────────────────────────
+  "photos": "image_count",
   "photo count": "image_count",
   "image count": "image_count",
-  "photos": "image_count",
   "num photos": "image_count",
   "image_count": "image_count",
+  "number of photos": "image_count",
+  "photo #": "image_count",
 
-  // Engagement
+  // ── Engagement ─────────────────────────────────────────────────────────────
   "views": "views",
   "page views": "views",
   "total views": "views",
+  "visit count": "views",
   "watchers": "watchers",
   "watching": "watchers",
   "total watchers": "watchers",
+  "likes": "watchers",           // Poshmark/Depop — proxy for interest
+  "saves": "watchers",           // Depop saves
+  "favorites": "watchers",
+  "hearts": "watchers",          // Depop hearts
   "impressions": "impressions",
+  "search appearances": "impressions",
 
-  // Condition / specifics
+  // ── Specifics / quality ────────────────────────────────────────────────────
   "item specifics": "item_specifics_complete",
   "specifics complete": "item_specifics_complete",
+  "has specifics": "item_specifics_complete",
 
-  // Shipping
+  // ── Shipping ───────────────────────────────────────────────────────────────
   "shipping type": "shipping_type",
   "shipping service": "shipping_type",
+  "shipping method": "shipping_type",
   "shipping cost": "shipping_cost",
   "shipping price": "shipping_cost",
+  "postage cost": "shipping_cost",
+  "delivery cost": "shipping_cost",
+
+  // ── SKU / identifiers (mapped to sku for reference, not a required field) ──
+  "sku": "sku",
+  "custom label": "sku",
+  "custom label (sku)": "sku",
+  "item id": "sku",
+  "listing id": "sku",
+  "asin": "sku",
 };
 
 function normalizeHeader(raw: string): string {
@@ -102,6 +153,44 @@ function remapRow(raw: Record<string, string>): Record<string, unknown> {
     out[mapped] = v;
   }
   return out;
+}
+
+// Detect platform from filename so single-platform exports auto-populate.
+export function detectPlatformFromFilename(filename: string): string | null {
+  const lower = filename.toLowerCase();
+  if (lower.includes("poshmark")) return "Poshmark";
+  if (lower.includes("ebay") || lower.includes("e-bay")) return "eBay";
+  if (lower.includes("mercari")) return "Mercari";
+  if (lower.includes("depop")) return "Depop";
+  if (lower.includes("facebook") || lower.includes("fbmp")) return "Facebook Marketplace";
+  if (lower.includes("stockx")) return "StockX";
+  if (lower.includes("goat")) return "GOAT";
+  if (lower.includes("whatnot")) return "Whatnot";
+  if (lower.includes("grailed")) return "Grailed";
+  return null;
+}
+
+// Detect which required fields are present in a set of CSV headers.
+export function detectMappedFields(headers: string[]): {
+  hasTitle: boolean;
+  hasPrice: boolean;
+  hasPlatform: boolean;
+  hasDays: boolean;
+  detectedFields: string[];
+} {
+  const mapped = headers.map((h) => normalizeHeader(h));
+  const titleFields = ["title"];
+  const priceFields = ["price", "original_price"];
+  const platformFields = ["platform"];
+  const daysFields = ["days_listed", "listed_date"];
+
+  return {
+    hasTitle: mapped.some((f) => titleFields.includes(f)),
+    hasPrice: mapped.some((f) => priceFields.includes(f)),
+    hasPlatform: mapped.some((f) => platformFields.includes(f)),
+    hasDays: mapped.some((f) => daysFields.includes(f)),
+    detectedFields: mapped.filter((f) => f !== f.replace(/\s+/g, "_") || COLUMN_ALIASES[f]),
+  };
 }
 
 // ─── Parse Entry Point ────────────────────────────────────────────────────────
@@ -144,8 +233,15 @@ export function parseCSVFile(
       const capped = raw.slice(0, CSV_MAX_ROWS);
       totalParsed = capped.length;
 
+      // Auto-inject platform from filename when rows have no platform column
+      const platformFromFile = detectPlatformFromFilename(file.name);
+
       capped.forEach((rawRow, idx) => {
         const remapped = remapRow(rawRow);
+        // If no platform column detected, inject from filename
+        if ((!remapped.platform || remapped.platform === "") && platformFromFile) {
+          remapped.platform = platformFromFile;
+        }
         const result: RowNormResult = normalizeInventoryRow(remapped);
 
         if (!result.ok) {
@@ -251,9 +347,15 @@ export function parseCSVFileWithMapping(
       const capped = raw.slice(0, CSV_MAX_ROWS);
       totalParsed = capped.length;
 
+      const platformFromFile = detectPlatformFromFilename(file.name);
+
       capped.forEach((rawRow, idx) => {
         const rowNum = idx + 1;
-        const r = normalizeInventoryRow(rawRow);
+        const row: Record<string, unknown> = { ...rawRow };
+        if ((!row.platform || row.platform === "") && platformFromFile) {
+          row.platform = platformFromFile;
+        }
+        const r = normalizeInventoryRow(row);
         if (!r.ok) {
           errors.push(...r.errors.map((e) => ({ rowIndex: rowNum, message: e })));
           r.warnings.forEach((w) => warnings.push({ rowIndex: rowNum, field: w.field, message: w.issue }));

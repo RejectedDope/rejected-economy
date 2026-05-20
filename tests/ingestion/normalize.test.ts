@@ -10,6 +10,7 @@ import {
   normalizeCategory,
   detectDuplicates,
   normalizeInventoryRow,
+  dateStringToDaysListed,
 } from "@/lib/ingestion/normalize";
 
 // ─── Platform Normalization ───────────────────────────────────────────────────
@@ -365,5 +366,126 @@ describe("dangerous inputs rejected or sanitized", () => {
       // Title is stored as plain text — no HTML execution possible in DB
       expect(typeof r.row.title).toBe("string");
     }
+  });
+});
+
+// ─── dateStringToDaysListed ───────────────────────────────────────────────────
+
+describe("dateStringToDaysListed", () => {
+  it("returns 0 for empty/null input", () => {
+    expect(dateStringToDaysListed("").ok && dateStringToDaysListed("").value).toBe(0);
+    expect(dateStringToDaysListed(null).ok && dateStringToDaysListed(null).value).toBe(0);
+    expect(dateStringToDaysListed(undefined).ok && dateStringToDaysListed(undefined).value).toBe(0);
+  });
+
+  it("parses ISO 8601 date", () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    const result = dateStringToDaysListed(d.toISOString());
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toBeGreaterThanOrEqual(29);
+      expect(result.value).toBeLessThanOrEqual(31);
+    }
+  });
+
+  it("parses YYYY-MM-DD format", () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 60);
+    const str = d.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const result = dateStringToDaysListed(str);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toBeGreaterThanOrEqual(59);
+      expect(result.value).toBeLessThanOrEqual(61);
+    }
+  });
+
+  it("parses MM/DD/YYYY format", () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 14);
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const result = dateStringToDaysListed(`${mm}/${dd}/${yyyy}`);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toBeGreaterThanOrEqual(13);
+      expect(result.value).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it("clamps to 0 for future dates", () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    const result = dateStringToDaysListed(d.toISOString().slice(0, 10));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe(0);
+  });
+
+  it("returns 0 for unparseable strings", () => {
+    const result = dateStringToDaysListed("not a date at all");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toBe(0);
+  });
+});
+
+// ─── normalizeInventoryRow — price fallback ───────────────────────────────────
+
+describe("normalizeInventoryRow price fallback", () => {
+  it("accepts original_price as fallback when price is missing", () => {
+    const r = normalizeInventoryRow({ title: "Test Item", original_price: "45.00" });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.row.price).toBe(45);
+      expect(r.row.warnings.some((w) => w.issue === "price_inferred_from_original_price")).toBe(true);
+    }
+  });
+
+  it("uses price field directly when both present", () => {
+    const r = normalizeInventoryRow({ title: "Test Item", price: "30", original_price: "45" });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.row.price).toBe(30);
+      expect(r.row.original_price).toBe(45);
+    }
+  });
+
+  it("rejects row when both price and original_price are missing", () => {
+    const r = normalizeInventoryRow({ title: "Test Item" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.some((e) => e.includes("price"))).toBe(true);
+  });
+});
+
+// ─── normalizeInventoryRow — listed_date fallback ─────────────────────────────
+
+describe("normalizeInventoryRow listed_date fallback", () => {
+  it("infers days_listed from listed_date when days_listed not present", () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 45);
+    const r = normalizeInventoryRow({
+      title: "Test Item",
+      price: "25",
+      listed_date: d.toISOString().slice(0, 10),
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.row.days_listed).toBeGreaterThanOrEqual(44);
+      expect(r.row.days_listed).toBeLessThanOrEqual(46);
+    }
+  });
+
+  it("prefers explicit days_listed over listed_date", () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 45);
+    const r = normalizeInventoryRow({
+      title: "Test Item",
+      price: "25",
+      days_listed: "10",
+      listed_date: d.toISOString().slice(0, 10),
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.row.days_listed).toBe(10);
   });
 });

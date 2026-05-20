@@ -4,23 +4,29 @@ import { useState, useEffect, useReducer } from "react";
 import { scoreAll } from "@/lib/scoring";
 import type { ScoredItem, InventoryItem } from "@/lib/types";
 import { MOCK_ITEMS } from "@/lib/mock-data";
+import { supabaseConfigured } from "@/lib/env";
 
 type FetchResult =
-  | { authenticated: false }
+  | { authenticated: false; demo: boolean }  // demo=true → show mock, demo=false → show empty error
   | { authenticated: true; items: InventoryItem[] };
 
 async function fetchInventoryClient(): Promise<FetchResult> {
+  // If Supabase isn't configured, this is a demo environment — show mock data
+  if (!supabaseConfigured) return { authenticated: false, demo: true };
+
   try {
     const { createClient } = await import("@/lib/supabase/client");
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { authenticated: false };
+    // Not logged in → demo mode for visitors
+    if (!user) return { authenticated: false, demo: true };
 
     const { fetchUserInventory } = await import("@/app/actions/inventory");
     const result = await fetchUserInventory("active", 500);
     return { authenticated: true, items: result.items ?? [] };
   } catch {
-    return { authenticated: false };
+    // Supabase IS configured but request failed — don't leak mock data
+    return { authenticated: false, demo: false };
   }
 }
 
@@ -54,7 +60,8 @@ export interface UseInventoryState {
 
 export function useInventory(): UseInventoryState {
   const [state, dispatch] = useReducer(reducer, {
-    items: scoreAll(MOCK_ITEMS),
+    // Start with empty items — never flash mock data during loading
+    items: [],
     loading: true,
     error: null,
     isRealData: false,
@@ -68,11 +75,12 @@ export function useInventory(): UseInventoryState {
     fetchInventoryClient().then((result) => {
       if (cancelled) return;
       if (!result.authenticated) {
-        // Unauthenticated — show demo data
-        dispatch({ type: "loaded", items: scoreAll(MOCK_ITEMS), isRealData: false, isAuthenticated: false });
+        // demo=true → visitor without account, show demo data
+        // demo=false → Supabase configured but auth failed, show nothing
+        const items = result.demo ? scoreAll(MOCK_ITEMS) : [];
+        dispatch({ type: "loaded", items, isRealData: false, isAuthenticated: false });
         return;
       }
-      // Authenticated — show real data (may be empty)
       dispatch({
         type: "loaded",
         items: result.items.length > 0 ? scoreAll(result.items) : [],

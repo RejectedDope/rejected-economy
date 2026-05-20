@@ -20,6 +20,7 @@ import {
 import { validateScreenshotFile, type ExtractedListingFields } from "@/lib/ingestion/screenshot-parser";
 import { normalizePlatform, normalizePrice } from "@/lib/ingestion/normalize";
 import { detectDuplicates, type NormalizedRow } from "@/lib/ingestion/normalize";
+import { checkBatchTrust, type QuarantinedRow } from "@/lib/ingestion/trust-layer";
 import { importInventoryItems } from "@/app/actions/inventory";
 import { parseXLSXAction } from "@/app/actions/import";
 import { logger } from "@/lib/logger";
@@ -89,6 +90,8 @@ export default function ImportPage() {
   const [importedCount, setImportedCount] = useState(0);
   const [importSkipped, setImportSkipped] = useState(0);
   const [importDuplicates, setImportDuplicates] = useState(0);
+  const [importQuarantined, setImportQuarantined] = useState(0);
+  const [quarantinedRows, setQuarantinedRows] = useState<QuarantinedRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   // Column mapping state
   const [pendingCsvFile, setPendingCsvFile] = useState<File | null>(null);
@@ -138,7 +141,9 @@ export default function ImportPage() {
           setParseError("Could not parse XLSX. Check the file is a valid inventory spreadsheet.");
           return;
         }
-        const reviewRows = buildReviewRows(result.rows);
+        const trust = checkBatchTrust(result.rows);
+        setQuarantinedRows(trust.quarantined);
+        const reviewRows = buildReviewRows(trust.valid);
         setImportState({ result, rows: reviewRows, errors: result.errors, warnings: result.warnings, screenshotCount: screenshots.length });
         setStage("review");
       }).catch((err: unknown) => {
@@ -182,7 +187,9 @@ export default function ImportPage() {
         setStage("upload");
         return;
       }
-      const reviewRows = buildReviewRows(result.rows);
+      const trust = checkBatchTrust(result.rows);
+      setQuarantinedRows(trust.quarantined);
+      const reviewRows = buildReviewRows(trust.valid);
       setImportState((prev) => ({ ...prev, result, rows: reviewRows, errors: result.errors, warnings: result.warnings }));
       setStage("review");
     });
@@ -234,6 +241,7 @@ export default function ImportPage() {
       setImportedCount(result.inserted);
       setImportSkipped(result.skipped ?? 0);
       setImportDuplicates(result.duplicates ?? 0);
+      setImportQuarantined(result.quarantined ?? 0);
       if (result.errors.length > 0) {
         logger.warn("ingestion", "Import completed with errors", { errors: result.errors });
       }
@@ -412,6 +420,36 @@ export default function ImportPage() {
             </div>
           )}
 
+          {/* Quarantined rows panel */}
+          {quarantinedRows.length > 0 && (
+            <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-yellow-400" />
+                <p className="text-sm font-bold text-yellow-300">
+                  {quarantinedRows.length} row{quarantinedRows.length !== 1 ? "s" : ""} quarantined — blocked from import
+                </p>
+              </div>
+              <p className="mb-3 text-xs text-zinc-500">
+                These rows failed data validation. Fix the source file and re-import to include them.
+              </p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {quarantinedRows.slice(0, 20).map(({ row, rowIndex, violations }) => (
+                  <div key={rowIndex} className="rounded border border-zinc-800 bg-zinc-900 px-3 py-2">
+                    <p className="text-xs font-semibold text-zinc-300 truncate">{row.title || "(no title)"}</p>
+                    <p className="text-[11px] text-yellow-500">
+                      {violations.map((v) => v.message).join(" · ")}
+                    </p>
+                  </div>
+                ))}
+                {quarantinedRows.length > 20 && (
+                  <p className="text-[11px] text-zinc-600 text-center pt-1">
+                    …and {quarantinedRows.length - 20} more
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {importState.rows.length > 0 && (
             <ReviewTable
               rows={importState.rows}
@@ -455,7 +493,7 @@ export default function ImportPage() {
           </div>
 
           {/* Import summary */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-center">
               <p className="text-2xl font-black text-emerald-400">{importedCount}</p>
               <p className="mt-0.5 text-xs font-bold uppercase tracking-widest text-zinc-600">Imported</p>
@@ -463,6 +501,10 @@ export default function ImportPage() {
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-center">
               <p className="text-2xl font-black text-purple-400">{importDuplicates}</p>
               <p className="mt-0.5 text-xs font-bold uppercase tracking-widest text-zinc-600">Duplicates</p>
+            </div>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-center">
+              <p className="text-2xl font-black text-yellow-400">{importQuarantined}</p>
+              <p className="mt-0.5 text-xs font-bold uppercase tracking-widest text-zinc-600">Quarantined</p>
             </div>
             <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 text-center">
               <p className="text-2xl font-black text-zinc-500">{importSkipped}</p>
@@ -499,6 +541,8 @@ export default function ImportPage() {
               setImportedCount(0);
               setImportSkipped(0);
               setImportDuplicates(0);
+              setImportQuarantined(0);
+              setQuarantinedRows([]);
             }}
             className="w-full text-xs text-zinc-600 hover:text-zinc-400 py-1"
           >

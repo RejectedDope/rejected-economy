@@ -23,6 +23,7 @@ import { DeathPileTable } from "@/components/dashboard/DeathPileTable";
 import { PortfolioHealthBar } from "@/components/dashboard/PortfolioHealthBar";
 import { LifecycleDistributionBar } from "@/components/dashboard/LifecycleDistributionBar";
 import { TrappedCashTrend } from "@/components/dashboard/TrappedCashTrend";
+import { ImportStatusPanel } from "@/components/dashboard/ImportStatusPanel";
 import { formatCurrency } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -164,6 +165,14 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
+
+        {/* ── Ingestion Status (authenticated only) ────────────────────────── */}
+        {isAuthenticated && (
+          <ImportStatusPanel
+            totalInventoryCount={stats.total_items}
+            isAuthenticated={isAuthenticated}
+          />
+        )}
 
         {/* ── Loading Skeleton ─────────────────────────────────────────────── */}
         {loading && (

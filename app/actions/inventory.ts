@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { scoreItem } from "@/lib/scoring";
 import { dedupeAgainstExisting } from "@/lib/inventory/deduplication";
+import { checkBatchTrust } from "@/lib/ingestion/trust-layer";
 import { logger } from "@/lib/logger";
 import type { NormalizedRow } from "@/lib/ingestion/normalize";
 import type { InventoryItem } from "@/lib/types";
@@ -27,6 +28,7 @@ export type ImportResult = {
   inserted: number;
   skipped: number;
   duplicates: number;
+  quarantined: number;
   errors: string[];
   batch_id: string;
 };
@@ -46,6 +48,7 @@ export async function importInventoryItems(
   const errors: string[] = [];
   let skipped = 0;
   let duplicates = 0;
+  let quarantined = 0;
 
   logger.info("ingestion", "Import started", {
     userId: user.id,
@@ -89,14 +92,30 @@ export async function importInventoryItems(
   duplicates = matches.length;
 
   if (unique.length === 0) {
-    return { inserted: 0, skipped: rows.length, duplicates, errors, batch_id };
+    return { inserted: 0, skipped: rows.length, duplicates, quarantined: 0, errors, batch_id };
+  }
+
+  // Trust-layer validation — quarantine rows that fail hard rules
+  const trustResult = checkBatchTrust(unique);
+  quarantined = trustResult.quarantinedCount;
+  if (quarantined > 0) {
+    trustResult.quarantined.forEach(({ row, violations }) => {
+      const reasons = violations.map((v) => v.message).join("; ");
+      errors.push(`Quarantined "${row.title}": ${reasons}`);
+      skipped++;
+    });
+  }
+
+  const validRows = trustResult.valid;
+  if (validRows.length === 0) {
+    return { inserted: 0, skipped: rows.length, duplicates, quarantined, errors, batch_id };
   }
 
   // Score each row and build insert payloads
   const inserts: InventoryItemInsert[] = [];
   const now = new Date().toISOString();
 
-  for (const row of unique) {
+  for (const row of validRows) {
     try {
       // Build a minimal InventoryItem for scoring
       const item: InventoryItem = {
@@ -198,7 +217,7 @@ export async function importInventoryItems(
     durationMs,
   });
 
-  return { inserted, skipped, duplicates, errors, batch_id };
+  return { inserted, skipped, duplicates, quarantined, errors, batch_id };
 }
 
 // ─── Fetch User Inventory ─────────────────────────────────────────────────────

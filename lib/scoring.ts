@@ -10,6 +10,7 @@ import type {
   PricingPosition,
   PricingAnalysis,
 } from "./types";
+import { getRecoveryMultiplier } from "./recovery/registry";
 
 // ─── Scoring Specification ────────────────────────────────────────────────────
 //
@@ -307,22 +308,7 @@ export function calcPrimaryAction(item: InventoryItem): RecoveryAction {
 
 export function calcEstimatedRecovery(item: InventoryItem): number {
   const action = calcPrimaryAction(item);
-  const price = item.price;
-
-  const recoveryRates: Record<RecoveryAction, number> = {
-    hold:                1.00, // no action needed, full price expected
-    add_photos:          0.92, // CTR improvement, near-full recovery
-    title_rewrite:       0.90, // free fix, high recovery potential
-    optimize_specifics:  0.88, // enters filtered search, strong recovery
-    sell_similar:        0.82, // fresh impressions, slight price test likely
-    relist_now:          0.78, // full reset, small price concession typical
-    move_platform:       0.72, // platform shift carries friction cost
-    strategic_markdown:  0.65, // deliberate cut to trigger activity
-    bundle:              0.50, // bundled items sell for less per unit
-    liquidate:           0.25, // 20–30 cents on the dollar
-  };
-
-  return Math.round(price * (recoveryRates[action] ?? 0.6) * 100) / 100;
+  return Math.round(item.price * getRecoveryMultiplier(action) * 100) / 100;
 }
 
 // ─── Composite Scorer ─────────────────────────────────────────────────────────

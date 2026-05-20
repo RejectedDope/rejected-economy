@@ -13,10 +13,18 @@ type Props = {
 
 export function ImportStatusPanel({ totalInventoryCount, isAuthenticated }: Props) {
   const [data, setData] = useState<ImportSessionsResult | null>(null);
+  const [daysSinceLastImport, setDaysSinceLastImport] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    fetchRecentImportSessions(3).then(setData).catch(() => {});
+    fetchRecentImportSessions(3).then((result) => {
+      setData(result);
+      if (result?.lastImportAt) {
+        setDaysSinceLastImport(
+          Math.floor((Date.now() - new Date(result.lastImportAt).getTime()) / 86_400_000)
+        );
+      }
+    }).catch(() => {});
   }, [isAuthenticated]);
 
   if (!isAuthenticated) return null;
@@ -148,6 +156,24 @@ export function ImportStatusPanel({ totalInventoryCount, isAuthenticated }: Prop
           >
             {lastSession.status}
           </span>
+        </div>
+      )}
+
+      {/* Freshness warning — stale inventory data */}
+      {daysSinceLastImport !== null && daysSinceLastImport >= 7 && (
+        <div className="flex items-center justify-between gap-3 border-t border-yellow-500/20 bg-yellow-500/5 px-5 py-2.5">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
+            <p className="text-xs text-yellow-300">
+              Last import was {daysSinceLastImport} day{daysSinceLastImport !== 1 ? "s" : ""} ago — your inventory data may be stale.
+            </p>
+          </div>
+          <Link
+            href="/inventory/import"
+            className="shrink-0 text-xs font-bold text-yellow-400 hover:underline"
+          >
+            Import now →
+          </Link>
         </div>
       )}
     </div>

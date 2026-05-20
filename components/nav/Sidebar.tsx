@@ -12,6 +12,7 @@ import {
   BarChart3,
   ChevronRight,
   FolderUp,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/app/actions/auth";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/inventory", label: "All Inventory", icon: Package },
   { href: "/analyzer", label: "Item Analyzer", icon: Upload },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings/plan", label: "Plan & Usage", icon: CreditCard },
 ];
 
 export function Sidebar() {

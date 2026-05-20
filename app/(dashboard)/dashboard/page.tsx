@@ -25,6 +25,7 @@ import { LifecycleDistributionBar } from "@/components/dashboard/LifecycleDistri
 import { TrappedCashTrend } from "@/components/dashboard/TrappedCashTrend";
 import { ImportStatusPanel } from "@/components/dashboard/ImportStatusPanel";
 import { InventoryHealthDigest } from "@/components/dashboard/InventoryHealthDigest";
+import { DailyFocusPanel } from "@/components/dashboard/DailyFocusPanel";
 import { formatCurrency } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -341,6 +342,9 @@ export default function DashboardPage() {
                 </Link>
               </div>
             )}
+
+            {/* ── Daily Focus Panel (real data only) ───────────────────── */}
+            {isRealData && <DailyFocusPanel items={scored} />}
 
             {/* ── Stale Inventory Alert ─────────────────────────────────── */}
             {stats.stale_count > 0 && stats.stale_cash > 0 && (

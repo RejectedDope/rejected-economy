@@ -24,6 +24,7 @@ import { PortfolioHealthBar } from "@/components/dashboard/PortfolioHealthBar";
 import { LifecycleDistributionBar } from "@/components/dashboard/LifecycleDistributionBar";
 import { TrappedCashTrend } from "@/components/dashboard/TrappedCashTrend";
 import { ImportStatusPanel } from "@/components/dashboard/ImportStatusPanel";
+import { InventoryHealthDigest } from "@/components/dashboard/InventoryHealthDigest";
 import { formatCurrency } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -403,6 +404,11 @@ export default function DashboardPage() {
             {/* ── Insight Cards ─────────────────────────────────────────── */}
             <div className="mt-6">
               <InsightCards stats={stats} items={scored} />
+            </div>
+
+            {/* ── Inventory Health Digest ───────────────────────────────── */}
+            <div className="mt-6">
+              <InventoryHealthDigest items={scored} />
             </div>
 
             {/* ── Death Pile Table ──────────────────────────────────────── */}

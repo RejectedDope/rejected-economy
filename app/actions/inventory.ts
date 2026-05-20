@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { scoreItem } from "@/lib/scoring";
 import { dedupeAgainstExisting } from "@/lib/inventory/deduplication";
 import { checkBatchTrust } from "@/lib/ingestion/trust-layer";
+import { checkBatchSizeQuota, checkItemQuota, getPlan } from "@/lib/subscription/tiers";
 import { logger } from "@/lib/logger";
 import type { NormalizedRow } from "@/lib/ingestion/normalize";
 import type { InventoryItem } from "@/lib/types";
@@ -31,6 +32,7 @@ export type ImportResult = {
   quarantined: number;
   errors: string[];
   batch_id: string;
+  quota_warning?: string; // set when approaching or over plan limits
 };
 
 export async function importInventoryItems(
@@ -49,6 +51,43 @@ export async function importInventoryItems(
   let skipped = 0;
   let duplicates = 0;
   let quarantined = 0;
+  let quota_warning: string | undefined;
+
+  // ── Quota enforcement ────────────────────────────────────────────────────
+  const { data: subData } = await supabase
+    .from("user_subscriptions")
+    .select("plan_id")
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  const planId = (subData?.plan_id as Parameters<typeof getPlan>[0]) ?? "free";
+  const plan = getPlan(planId);
+
+  // Hard limit: batch size (system stability)
+  const batchQuota = checkBatchSizeQuota(planId, rows.length);
+  if (!batchQuota.ok) {
+    return {
+      inserted: 0, skipped: rows.length, duplicates: 0, quarantined: 0,
+      errors: [`${batchQuota.reason}. Upgrade your plan to import larger files.`],
+      batch_id,
+    };
+  }
+
+  // Soft limit: item count (show warning, don't block — billing not yet wired)
+  const { count: currentCount } = await supabase
+    .from("inventory_items")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("status", "active");
+
+  const itemQuota = checkItemQuota(planId, currentCount ?? 0, rows.length);
+  if (!itemQuota.ok) {
+    quota_warning = `${itemQuota.reason}. Upgrade to ${plan.id === "free" ? "Starter" : "Pro"} for more capacity.`;
+    logger.warn("ingestion", "Item quota exceeded (soft)", { userId: user.id, planId, currentCount, pendingRows: rows.length });
+  } else if (plan.maxItems !== -1 && (currentCount ?? 0) + rows.length > plan.maxItems * 0.9) {
+    quota_warning = `Approaching ${plan.name} plan limit (${plan.maxItems} items). Upgrade to continue importing.`;
+  }
 
   logger.info("ingestion", "Import started", {
     userId: user.id,
@@ -217,7 +256,7 @@ export async function importInventoryItems(
     durationMs,
   });
 
-  return { inserted, skipped, duplicates, quarantined, errors, batch_id };
+  return { inserted, skipped, duplicates, quarantined, errors, batch_id, quota_warning };
 }
 
 // ─── Fetch User Inventory ─────────────────────────────────────────────────────

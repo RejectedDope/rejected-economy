@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -87,6 +87,9 @@ export default function ImportPage() {
   });
   const [screenshotEntries, setScreenshotEntries] = useState<ScreenshotEntry[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0); // 0–100 simulated progress
+  const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [importedCount, setImportedCount] = useState(0);
   const [importSkipped, setImportSkipped] = useState(0);
   const [importDuplicates, setImportDuplicates] = useState(0);
@@ -232,27 +235,44 @@ export default function ImportPage() {
 
   async function handleImport(approvedRows: ReviewRow[]) {
     setIsImporting(true);
+    setImportProgress(5);
+
+    // Simulate progress while server-side insert runs (100 rows ≈ 500ms per batch)
+    const rowCount = approvedRows.length;
+    const estimatedMs = Math.max(2000, Math.ceil(rowCount / 100) * 800);
+    const tickMs = 200;
+    const tickStep = Math.floor(80 / (estimatedMs / tickMs)); // advance to ~85% over estimated time
+    progressRef.current = setInterval(() => {
+      setImportProgress((p) => Math.min(85, p + tickStep));
+    }, tickMs);
+
     try {
       const normalizedRows: NormalizedRow[] = approvedRows.map(
         ({ rowIndex: _r, reviewStatus: _s, isDuplicate: _d, duplicateOfRow: _o, ...row }) =>
           row as NormalizedRow
       );
       const result = await importInventoryItems(normalizedRows, true);
+
+      if (progressRef.current) clearInterval(progressRef.current);
+      setImportProgress(100);
+
       setImportedCount(result.inserted);
       setImportSkipped(result.skipped ?? 0);
       setImportDuplicates(result.duplicates ?? 0);
       setImportQuarantined(result.quarantined ?? 0);
+      if (result.quota_warning) setQuotaWarning(result.quota_warning);
       if (result.errors.length > 0) {
         logger.warn("ingestion", "Import completed with errors", { errors: result.errors });
       }
       logger.info("ingestion", "Import complete", { inserted: result.inserted, skipped: result.skipped, duplicates: result.duplicates });
-      // Trigger portfolio snapshot asynchronously — don't block the done state
       import("@/app/actions/snapshots").then(({ writePortfolioSnapshot, writeItemSnapshots }) => {
         writePortfolioSnapshot("import_trigger").catch(() => {});
         writeItemSnapshots().catch(() => {});
       }).catch(() => {});
       setStage("done");
     } catch (err) {
+      if (progressRef.current) clearInterval(progressRef.current);
+      setImportProgress(0);
       logger.error("ingestion", "Import failed", { error: String(err) });
       setParseError(String(err));
     } finally {
@@ -451,18 +471,39 @@ export default function ImportPage() {
           )}
 
           {importState.rows.length > 0 && (
-            <ReviewTable
-              rows={importState.rows}
-              errors={importState.errors}
-              warnings={importState.warnings}
-              skipped={importState.result?.skipped ?? 0}
-              truncated={importState.result?.truncated ?? false}
-              onApproveAll={handleApproveAll}
-              onExcludeRow={handleExcludeRow}
-              onRestoreRow={handleRestoreRow}
-              onImport={handleImport}
-              importing={isImporting}
-            />
+            <>
+              {isImporting && (
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-5 py-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-zinc-300">
+                      Importing {importState.rows.length} items…
+                    </p>
+                    <p className="text-xs text-zinc-500">{importProgress}%</p>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+                    <div
+                      className="h-full rounded-full bg-[#E935C1] transition-all duration-200"
+                      style={{ width: `${importProgress}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-zinc-600">
+                    Scoring and deduplicating — this may take a few seconds for large batches.
+                  </p>
+                </div>
+              )}
+              <ReviewTable
+                rows={importState.rows}
+                errors={importState.errors}
+                warnings={importState.warnings}
+                skipped={importState.result?.skipped ?? 0}
+                truncated={importState.result?.truncated ?? false}
+                onApproveAll={handleApproveAll}
+                onExcludeRow={handleExcludeRow}
+                onRestoreRow={handleRestoreRow}
+                onImport={handleImport}
+                importing={isImporting}
+              />
+            </>
           )}
 
           {importState.rows.length === 0 && importState.screenshotCount === 0 && (
@@ -488,7 +529,7 @@ export default function ImportPage() {
               Import Complete
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Your inventory has been scored and is ready for analysis.
+              {importedCount} listings scored and ready for analysis.
             </p>
           </div>
 
@@ -512,6 +553,61 @@ export default function ImportPage() {
             </div>
           </div>
 
+          {/* Quota warning */}
+          {quotaWarning && (
+            <div className="flex items-start gap-3 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
+              <p className="text-sm text-yellow-300">{quotaWarning}</p>
+            </div>
+          )}
+
+          {/* What happens next — first-import walkthrough */}
+          {importedCount > 0 && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+              <p className="mb-4 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                What happens next
+              </p>
+              <div className="space-y-3">
+                {[
+                  {
+                    step: "1",
+                    title: "View your scored inventory",
+                    body: "Each listing has been scored 0–100 for inventory decay. Higher score = more urgent action needed.",
+                    href: "/inventory",
+                    cta: "View Inventory →",
+                  },
+                  {
+                    step: "2",
+                    title: "See your trapped cash",
+                    body: "The dashboard shows total value locked in stale listings — sorted by recovery urgency.",
+                    href: "/dashboard",
+                    cta: "Open Dashboard →",
+                  },
+                  {
+                    step: "3",
+                    title: "Run a recovery audit",
+                    body: "Get a prioritized action list: what to relist, what to markdown, what to liquidate — with specific steps per platform.",
+                    href: "/recovery",
+                    cta: "Recovery Center →",
+                  },
+                ].map(({ step, title, body, href, cta }) => (
+                  <div key={step} className="flex items-start gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800 text-xs font-black text-zinc-400">
+                      {step}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-zinc-200">{title}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">{body}</p>
+                    </div>
+                    <Link href={href} className="shrink-0 text-xs font-bold text-[#E935C1] hover:underline">
+                      {cta}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Next step CTAs */}
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
@@ -524,7 +620,7 @@ export default function ImportPage() {
               onClick={() => router.push("/recovery")}
               className="flex-1 rounded-lg border border-zinc-700 px-5 py-2.5 text-sm font-semibold text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
             >
-              Run Recovery Audit →
+              Recovery Center →
             </button>
             <button
               onClick={() => router.push("/inventory")}
@@ -543,6 +639,8 @@ export default function ImportPage() {
               setImportDuplicates(0);
               setImportQuarantined(0);
               setQuarantinedRows([]);
+              setImportProgress(0);
+              setQuotaWarning(null);
             }}
             className="w-full text-xs text-zinc-600 hover:text-zinc-400 py-1"
           >

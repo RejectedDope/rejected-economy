@@ -262,10 +262,20 @@ export default function RecoveryAuditPage() {
 
       setSubmitted(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      setSubmitError(
-        `Couldn't save your audit request. Please try again. (${message})`
-      );
+      // Supabase PostgrestError is a plain object {message, details, hint, code}, not instanceof Error
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+          ? String((err as Record<string, unknown>).message)
+          : typeof err === "string"
+          ? err
+          : "Submission failed — check your connection and try again";
+      const detail =
+        typeof err === "object" && err !== null && "code" in err
+          ? ` (code: ${(err as Record<string, unknown>).code})`
+          : "";
+      setSubmitError(`Couldn't save your audit request. ${message}${detail}`);
     } finally {
       setSubmitting(false);
     }

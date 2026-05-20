@@ -278,6 +278,8 @@ function makeItem(overrides: Partial<InventoryItem> = {}): InventoryItem {
     has_promoted_listing: false,
     shipping_type: "free",
     views: 20,
+    watchers: 2,
+    impressions: 100,
     status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

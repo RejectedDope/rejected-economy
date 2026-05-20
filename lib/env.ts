@@ -9,19 +9,23 @@ const PLACEHOLDER_KEY = "placeholder-anon-key";
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 
-const rawSupabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL  ?? PLACEHOLDER_URL;
-const rawSupabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? PLACEHOLDER_KEY;
+// Trim to guard against accidental whitespace from copy-paste in Vercel env UI
+const rawSupabaseUrl  = (process.env.NEXT_PUBLIC_SUPABASE_URL  ?? PLACEHOLDER_URL).trim();
+const rawSupabaseKey  = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? PLACEHOLDER_KEY).trim();
 
 /**
  * True when Supabase is configured with real credentials.
  * False in local dev without a .env.local, or in preview deploys without env vars.
  * Use this guard before any Supabase query to avoid crashing on unconfigured builds.
  */
+// Supabase anon keys are JWTs (3 base64url segments separated by dots)
+const keyIsJwt = rawSupabaseKey.split(".").length === 3 && rawSupabaseKey.length > 40;
+
 export const supabaseConfigured =
   rawSupabaseUrl !== PLACEHOLDER_URL &&
   rawSupabaseUrl.startsWith("https://") &&
   rawSupabaseKey !== PLACEHOLDER_KEY &&
-  rawSupabaseKey.length > 20;
+  keyIsJwt;
 
 export const env = {
   supabase: {
@@ -59,13 +63,28 @@ export function requireSupabase(): { ok: true } | { ok: false; reason: string } 
  * Never exposes key values — only presence/absence status.
  */
 export function envDiagnostics(): Record<string, string> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  let urlStatus = "missing";
+  if (url) {
+    if (url === PLACEHOLDER_URL) urlStatus = "placeholder";
+    else if (!url.startsWith("https://")) urlStatus = "invalid-no-https";
+    else if (!url.includes(".supabase.co")) urlStatus = "invalid-not-supabase-url";
+    else urlStatus = "ok";
+  }
+
+  let keyStatus = "missing";
+  if (key) {
+    if (key === PLACEHOLDER_KEY) keyStatus = "placeholder";
+    else if (key.split(".").length !== 3) keyStatus = "invalid-not-a-jwt";
+    else if (key.length < 40) keyStatus = "invalid-too-short";
+    else keyStatus = "ok";
+  }
+
   return {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL
-      ? (process.env.NEXT_PUBLIC_SUPABASE_URL === PLACEHOLDER_URL ? "placeholder" : "set")
-      : "missing",
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      ? (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY === PLACEHOLDER_KEY ? "placeholder" : "set")
-      : "missing",
+    NEXT_PUBLIC_SUPABASE_URL: urlStatus,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: keyStatus,
     NODE_ENV: process.env.NODE_ENV ?? "unknown",
     VERCEL_ENV: process.env.VERCEL_ENV ?? "not-vercel",
   };

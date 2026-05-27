@@ -66,6 +66,12 @@ export async function upsertAutomationRule(params: {
     );
 
     if (error) return { ok: false, error: error.message };
+
+    import("@/lib/telemetry/events").then(({ trackEvent }) => {
+      const eventType = params.enabled ? "automation_rule_enabled" : "automation_rule_disabled";
+      trackEvent(user.id, eventType, "automation", { ruleType: params.ruleType }).catch(() => {});
+    }).catch(() => {});
+
     return { ok: true };
   } catch {
     return { ok: false, error: "Failed to save rule" };

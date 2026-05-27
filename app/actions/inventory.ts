@@ -256,10 +256,16 @@ export async function importInventoryItems(
     durationMs,
   });
 
-  // Fire automation rule evaluation after a successful import (fire-and-forget)
+  // Fire automation rule evaluation and telemetry after a successful import (fire-and-forget)
   if (inserted > 0) {
     import("./automation").then(({ evaluateRulesForUser }) => {
       evaluateRulesForUser().catch(() => {});
+    }).catch(() => {});
+
+    import("@/lib/telemetry/events").then(({ trackEvent }) => {
+      trackEvent(user.id, "import_completed", "import", {
+        inserted, skipped, duplicates, batch_id,
+      }).catch(() => {});
     }).catch(() => {});
   }
 
@@ -390,6 +396,13 @@ export async function logRecoveryAction(
   });
 
   if (error) return { ok: false, error: error.message };
+
+  import("@/lib/telemetry/events").then(({ trackEvent }) => {
+    trackEvent(user.id, "recovery_action_taken", "recovery", {
+      itemId, actionType, status,
+    }).catch(() => {});
+  }).catch(() => {});
+
   return { ok: true };
 }
 
@@ -429,5 +442,45 @@ export async function deleteInventoryItem(
     .eq("user_id", user.id);
 
   if (error) return { ok: false, error: error.message };
+
+  import("@/lib/telemetry/events").then(({ trackEvent }) => {
+    trackEvent(user.id, "inventory_item_deleted", "inventory", { itemId }).catch(() => {});
+  }).catch(() => {});
+
   return { ok: true };
+}
+
+// ─── Undo Import Batch ────────────────────────────────────────────────────────
+
+export async function undoImportBatch(
+  batchId: string
+): Promise<{ ok: boolean; deleted: number; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, deleted: 0, error: "Not authenticated" };
+
+  const { data: items, error: fetchErr } = await supabase
+    .from("inventory_items")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("import_batch_id", batchId);
+
+  if (fetchErr) return { ok: false, deleted: 0, error: fetchErr.message };
+  if (!items || items.length === 0) return { ok: false, deleted: 0, error: "Batch not found or already removed" };
+
+  const { error: deleteErr } = await supabase
+    .from("inventory_items")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("import_batch_id", batchId);
+
+  if (deleteErr) return { ok: false, deleted: 0, error: deleteErr.message };
+
+  logger.info("ingestion", "Import batch undone", { userId: user.id, batchId, deleted: items.length });
+
+  import("@/lib/telemetry/events").then(({ trackEvent }) => {
+    trackEvent(user.id, "import_undo", "import", { batchId, deleted: items.length }).catch(() => {});
+  }).catch(() => {});
+
+  return { ok: true, deleted: items.length };
 }

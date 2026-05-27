@@ -30,6 +30,7 @@ import { RecoveryStatsPanel } from "@/components/dashboard/RecoveryStatsPanel";
 import { OperationalBriefPanel } from "@/components/dashboard/OperationalBriefPanel";
 import { AutomationAlertPanel } from "@/components/dashboard/AutomationAlertPanel";
 import { OperationalPressureFeed } from "@/components/dashboard/OperationalPressureFeed";
+import { SyncHealthWarning } from "@/components/dashboard/SyncHealthWarning";
 import { formatCurrency } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -179,6 +180,9 @@ export default function DashboardPage() {
             isAuthenticated={isAuthenticated}
           />
         )}
+
+        {/* ── Sync health warning (authenticated only) ─────────────────────── */}
+        {isAuthenticated && <SyncHealthWarning />}
 
         {/* ── Operational Pressure Feed (authenticated + real data) ──────── */}
         {isAuthenticated && isRealData && <OperationalPressureFeed />}

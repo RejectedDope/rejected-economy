@@ -27,6 +27,7 @@ import { ImportStatusPanel } from "@/components/dashboard/ImportStatusPanel";
 import { InventoryHealthDigest } from "@/components/dashboard/InventoryHealthDigest";
 import { DailyFocusPanel } from "@/components/dashboard/DailyFocusPanel";
 import { RecoveryStatsPanel } from "@/components/dashboard/RecoveryStatsPanel";
+import { OperationalBriefPanel } from "@/components/dashboard/OperationalBriefPanel";
 import { formatCurrency } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -346,6 +347,9 @@ export default function DashboardPage() {
                 </Link>
               </div>
             )}
+
+            {/* ── Operational Health (real data only) ──────────────────── */}
+            {isRealData && <OperationalBriefPanel items={scored} />}
 
             {/* ── Daily Focus Panel (real data only) ───────────────────── */}
             {isRealData && <DailyFocusPanel items={scored} />}

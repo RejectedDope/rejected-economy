@@ -17,6 +17,7 @@ import { ActionCards } from "@/components/recovery/ActionCards";
 import { PriorityQueue } from "@/components/recovery/PriorityQueue";
 import { RecoveryEffectivenessSummary } from "@/components/recovery/RecoveryEffectivenessSummary";
 import { ActionEffectivenessTable } from "@/components/recovery/ActionEffectivenessTable";
+import { RecoveryTimeline } from "@/components/recovery/RecoveryTimeline";
 import { formatCurrency } from "@/lib/utils";
 
 const URGENCY_OPTS = [
@@ -249,6 +250,11 @@ export default function RecoveryPage() {
 
           {/* Action cards */}
           <ActionCards plan={filteredPlan} />
+
+          {/* Recovery timeline — logged history */}
+          <div className="mt-8">
+            <RecoveryTimeline limit={20} />
+          </div>
         </div>
       )}
     </div>

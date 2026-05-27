@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Settings, Database, Bell, User, Zap, CheckCircle2, CreditCard, ChevronRight } from "lucide-react";
+import { Settings, Database, Bell, User, Zap, CheckCircle2, CreditCard, ChevronRight, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -89,6 +89,23 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm font-bold text-zinc-200">Plan & Usage</p>
               <p className="text-xs text-zinc-500">View your current plan, quota usage, and feature access</p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-400" />
+        </Link>
+
+        {/* Automation quick-link */}
+        <Link
+          href="/settings/automation"
+          className="group flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-zinc-600"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800">
+              <Bot className="h-4 w-4 text-[#E935C1]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Automation Rules</p>
+              <p className="text-xs text-zinc-500">Configure stale alerts, markdown triggers, and relist flags</p>
             </div>
           </div>
           <ChevronRight className="h-4 w-4 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-400" />

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, Lock } from "lucide-react";
 import Link from "next/link";
 import { FileUploader, type UploadedFile } from "@/components/ingestion/FileUploader";
 import { ReviewTable, type ReviewRow } from "@/components/ingestion/ReviewTable";
@@ -23,6 +23,8 @@ import { detectDuplicates, type NormalizedRow } from "@/lib/ingestion/normalize"
 import { checkBatchTrust, type QuarantinedRow } from "@/lib/ingestion/trust-layer";
 import { importInventoryItems } from "@/app/actions/inventory";
 import { parseXLSXAction } from "@/app/actions/import";
+import { fetchUsageSummary } from "@/app/actions/usage";
+import { hasFeature } from "@/lib/subscription/tiers";
 import { logger } from "@/lib/logger";
 
 type Stage = "upload" | "map" | "review" | "done";
@@ -96,9 +98,22 @@ export default function ImportPage() {
   const [importQuarantined, setImportQuarantined] = useState(0);
   const [quarantinedRows, setQuarantinedRows] = useState<QuarantinedRow[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [featureBlocked, setFeatureBlocked] = useState<"xlsx" | "ocr" | null>(null);
+  // Plan feature access (fetched once on mount)
+  const [hasXlsxAccess, setHasXlsxAccess] = useState(true);
+  const [hasOcrAccess, setHasOcrAccess] = useState(true);
   // Column mapping state
   const [pendingCsvFile, setPendingCsvFile] = useState<File | null>(null);
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchUsageSummary().then((summary) => {
+      if (summary) {
+        setHasXlsxAccess(hasFeature(summary.planId, "xlsx_import"));
+        setHasOcrAccess(hasFeature(summary.planId, "screenshot_ocr"));
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleFilesAccepted = useCallback((files: UploadedFile[]) => {
     setParseError(null);
@@ -112,6 +127,11 @@ export default function ImportPage() {
     });
 
     if (csvFiles.length === 0 && screenshots.length > 0) {
+      // Gate OCR for free-plan users
+      if (!hasOcrAccess) {
+        setFeatureBlocked("ocr");
+        return;
+      }
       // Screenshots only — stage for OCR review
       const validScreenshots = screenshots.filter((s) =>
         validateScreenshotFile({ name: s.file.name, size: s.file.size, type: s.file.type }).valid
@@ -137,6 +157,11 @@ export default function ImportPage() {
     const first = csvFiles[0];
 
     if (first.type === "xlsx") {
+      // Gate XLSX for free-plan users
+      if (!hasXlsxAccess) {
+        setFeatureBlocked("xlsx");
+        return;
+      }
       const fd = new FormData();
       fd.append("file", first.file);
       parseXLSXAction(fd).then((result) => {
@@ -162,7 +187,7 @@ export default function ImportPage() {
       setImportState((prev) => ({ ...prev, screenshotCount: screenshots.length }));
       setStage("map");
     });
-  }, []);
+  }, [hasOcrAccess, hasXlsxAccess]);
 
   function processCsvWithMapping(file: File, mapping: ColumnMapping | null) {
     const parse = mapping
@@ -343,6 +368,33 @@ export default function ImportPage() {
       {stage === "upload" && (
         <div className="space-y-6">
           <FileUploader onFilesAccepted={handleFilesAccepted} />
+
+          {/* Feature gate: XLSX or OCR blocked by plan */}
+          {featureBlocked && (
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-[#E935C1]/30 bg-[#E935C1]/5 px-5 py-4">
+              <div className="flex items-start gap-3">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[#E935C1]" />
+                <div>
+                  <p className="text-sm font-bold text-zinc-200">
+                    {featureBlocked === "xlsx" ? "XLSX Import" : "Screenshot OCR"} requires Starter or higher
+                  </p>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {featureBlocked === "xlsx"
+                      ? "Upgrade to import Excel spreadsheets directly."
+                      : "Upgrade to extract listing data from screenshots."}
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/settings/plan"
+                onClick={() => setFeatureBlocked(null)}
+                className="shrink-0 rounded-lg bg-[#E935C1] px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
+              >
+                View Plans →
+              </Link>
+            </div>
+          )}
+
           {parseError && (
             <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />

@@ -29,6 +29,7 @@ import { DailyFocusPanel } from "@/components/dashboard/DailyFocusPanel";
 import { RecoveryStatsPanel } from "@/components/dashboard/RecoveryStatsPanel";
 import { OperationalBriefPanel } from "@/components/dashboard/OperationalBriefPanel";
 import { AutomationAlertPanel } from "@/components/dashboard/AutomationAlertPanel";
+import { OperationalPressureFeed } from "@/components/dashboard/OperationalPressureFeed";
 import { formatCurrency } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -178,6 +179,9 @@ export default function DashboardPage() {
             isAuthenticated={isAuthenticated}
           />
         )}
+
+        {/* ── Operational Pressure Feed (authenticated + real data) ──────── */}
+        {isAuthenticated && isRealData && <OperationalPressureFeed />}
 
         {/* ── Recovery Stats (authenticated + real data only) ──────────────── */}
         {isAuthenticated && isRealData && <RecoveryStatsPanel />}

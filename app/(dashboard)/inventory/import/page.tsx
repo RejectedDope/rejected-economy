@@ -7,6 +7,7 @@ import Link from "next/link";
 import { FileUploader, type UploadedFile } from "@/components/ingestion/FileUploader";
 import { ReviewTable, type ReviewRow } from "@/components/ingestion/ReviewTable";
 import { ScreenshotReviewer } from "@/components/ingestion/ScreenshotReviewer";
+import { OcrBatchQueue } from "@/components/ingestion/OcrBatchQueue";
 import { ColumnMapper, type ColumnMapping } from "@/components/ingestion/ColumnMapper";
 import {
   parseCSVFile,
@@ -461,19 +462,31 @@ export default function ImportPage() {
           {screenshotEntries.length > 0 && importState.rows.length === 0 && (
             <div className="space-y-4">
               <p className="text-sm font-semibold text-zinc-400">
-                Review extracted fields for each screenshot. Correct any errors, then import.
+                {screenshotEntries.length === 1
+                  ? "Review extracted fields below. Correct any errors, then import."
+                  : `Processing ${screenshotEntries.length} screenshots. Review extracted fields, then import.`}
               </p>
-              {screenshotEntries.map((entry, idx) => (
+
+              {screenshotEntries.length === 1 ? (
                 <ScreenshotReviewer
-                  key={idx}
-                  file={entry.file}
+                  file={screenshotEntries[0].file}
                   onExtracted={(fields) => {
+                    setScreenshotEntries((prev) =>
+                      prev.map((e, i) => i === 0 ? { ...e, fields } : e)
+                    );
+                  }}
+                />
+              ) : (
+                <OcrBatchQueue
+                  files={screenshotEntries.map((e) => e.file)}
+                  onExtracted={(idx, fields) => {
                     setScreenshotEntries((prev) =>
                       prev.map((e, i) => i === idx ? { ...e, fields } : e)
                     );
                   }}
                 />
-              ))}
+              )}
+
               <button
                 onClick={() => {
                   const validRows: NormalizedRow[] = screenshotEntries

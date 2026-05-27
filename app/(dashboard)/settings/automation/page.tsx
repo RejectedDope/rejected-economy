@@ -11,6 +11,8 @@ import {
 import { fetchUsageSummary } from "@/app/actions/usage";
 import { hasFeature } from "@/lib/subscription/tiers";
 import { FeatureGate } from "@/components/subscription/FeatureGate";
+import { AutomationQueue } from "@/components/automation/AutomationQueue";
+import { AutomationHistory } from "@/components/automation/AutomationHistory";
 
 type RuleConfig = {
   type: AutomationRule["rule_type"];
@@ -356,6 +358,17 @@ export default function AutomationPage() {
               actions automatically. When a rule fires, the relevant items surface in your
               Recovery Priority Queue with the suggested action pre-selected.
             </p>
+          </div>
+
+          {/* Task Queue */}
+          <AutomationQueue />
+
+          {/* Run History */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">
+              Run History
+            </p>
+            <AutomationHistory />
           </div>
 
           <Link

@@ -41,13 +41,18 @@ interface InventoryTableProps {
   items: ScoredItem[];
 }
 
+const INITIAL_DISPLAY = 150;
+const LOAD_MORE_INCREMENT = 100;
+
 export function InventoryTable({ items }: InventoryTableProps) {
   const [query, setQuery] = useState("");
   const [riskFilter, setRiskFilter] = useState<VisibilityRisk | "All">("All");
   const [sortKey, setSortKey] = useState<SortKey>("dead_inventory_score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY);
 
   const handleSort = (key: SortKey) => {
+    setDisplayLimit(INITIAL_DISPLAY);
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -55,6 +60,9 @@ export function InventoryTable({ items }: InventoryTableProps) {
       setSortDir("desc");
     }
   };
+
+  const handleQueryChange = (v: string) => { setQuery(v); setDisplayLimit(INITIAL_DISPLAY); };
+  const handleRiskChange  = (v: VisibilityRisk | "All") => { setRiskFilter(v); setDisplayLimit(INITIAL_DISPLAY); };
 
   const filtered = items
     .filter((i) => {
@@ -70,6 +78,9 @@ export function InventoryTable({ items }: InventoryTableProps) {
       return (a[sortKey] - b[sortKey]) * mult;
     });
 
+  const visible = filtered.slice(0, displayLimit);
+  const hasMore = filtered.length > displayLimit;
+
   const riskOptions: Array<VisibilityRisk | "All"> = ["All", "Critical", "High", "Medium", "Low"];
 
   return (
@@ -79,14 +90,14 @@ export function InventoryTable({ items }: InventoryTableProps) {
         <Input
           placeholder="Search listings..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleQueryChange(e.target.value)}
           className="max-w-xs"
         />
         <div className="flex items-center gap-2">
           {riskOptions.map((r) => (
             <button
               key={r}
-              onClick={() => setRiskFilter(r)}
+              onClick={() => handleRiskChange(r)}
               className={`rounded px-3 py-1 text-xs font-bold uppercase tracking-wide transition-colors ${
                 riskFilter === r
                   ? "bg-[#E935C1] text-white"
@@ -144,7 +155,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
-            {filtered.map((item) => (
+            {visible.map((item) => (
               <tr
                 key={item.id}
                 className="group transition-colors hover:bg-zinc-800/40"
@@ -208,6 +219,17 @@ export function InventoryTable({ items }: InventoryTableProps) {
         {filtered.length === 0 && (
           <div className="py-12 text-center text-sm text-zinc-600">
             No listings match your filters.
+          </div>
+        )}
+
+        {hasMore && (
+          <div className="border-t border-zinc-800 px-4 py-3 text-center">
+            <button
+              onClick={() => setDisplayLimit((l) => l + LOAD_MORE_INCREMENT)}
+              className="text-xs font-semibold text-zinc-500 transition-colors hover:text-zinc-300"
+            >
+              Show more ({filtered.length - displayLimit} remaining)
+            </button>
           </div>
         )}
       </div>

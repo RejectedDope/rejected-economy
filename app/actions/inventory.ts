@@ -309,6 +309,18 @@ export async function updateItemStatus(
     updated_at: new Date().toISOString(),
   };
 
+  // Fetch item price to record actual recovery amount when marking sold
+  let itemPrice: number | null = null;
+  if (status === "sold" && recoveryAmount == null) {
+    const { data: itemData } = await supabase
+      .from("inventory_items")
+      .select("price")
+      .eq("id", itemId)
+      .eq("user_id", user.id)
+      .single();
+    itemPrice = itemData?.price ?? null;
+  }
+
   const { error } = await supabase
     .from("inventory_items")
     .update(update)
@@ -325,7 +337,7 @@ export async function updateItemStatus(
       action_type: "hold",
       action_status: "completed",
       outcome: "sold",
-      recovery_amount: recoveryAmount ?? null,
+      recovery_amount: recoveryAmount ?? itemPrice ?? null,
       completed_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
     });

@@ -26,6 +26,7 @@ import { TrappedCashTrend } from "@/components/dashboard/TrappedCashTrend";
 import { ImportStatusPanel } from "@/components/dashboard/ImportStatusPanel";
 import { InventoryHealthDigest } from "@/components/dashboard/InventoryHealthDigest";
 import { DailyFocusPanel } from "@/components/dashboard/DailyFocusPanel";
+import { RecoveryStatsPanel } from "@/components/dashboard/RecoveryStatsPanel";
 import { formatCurrency } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -175,6 +176,9 @@ export default function DashboardPage() {
             isAuthenticated={isAuthenticated}
           />
         )}
+
+        {/* ── Recovery Stats (authenticated + real data only) ──────────────── */}
+        {isAuthenticated && isRealData && <RecoveryStatsPanel />}
 
         {/* ── Loading Skeleton ─────────────────────────────────────────────── */}
         {loading && (

@@ -9,8 +9,16 @@ import {
   RefreshCw,
   AlertTriangle,
   Image as ImageIcon,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import type { ExtractedListingFields } from "@/lib/ingestion/screenshot-parser";
+
+const PLATFORM_OPTIONS = [
+  "eBay", "Poshmark", "Mercari", "Depop", "Facebook Marketplace",
+  "StockX", "GOAT", "Whatnot", "Grailed", "Other",
+];
 
 export type OcrBatchEntry = {
   file: File;
@@ -20,6 +28,8 @@ export type OcrBatchEntry = {
   fields: ExtractedListingFields | null;
   isDuplicate: boolean;
   previewUrl: string | null;
+  edited: boolean;
+  editDraft: Partial<ExtractedListingFields> | null;
 };
 
 interface OcrBatchQueueProps {
@@ -50,14 +60,100 @@ function buildInitialEntries(files: File[]): OcrBatchEntry[] {
       fields: null,
       isDuplicate: count > 0,
       previewUrl,
+      edited: false,
+      editDraft: null,
     };
   });
+}
+
+function EditForm({
+  fields,
+  onSave,
+  onCancel,
+}: {
+  fields: ExtractedListingFields;
+  onSave: (updated: ExtractedListingFields) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<ExtractedListingFields>({ ...fields });
+
+  return (
+    <div className="mt-3 space-y-2 rounded-lg border border-[#E935C1]/25 bg-zinc-950 p-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Edit Extracted Fields</p>
+
+      <div>
+        <label className="text-[10px] text-zinc-600">Title</label>
+        <input
+          type="text"
+          value={draft.title ?? ""}
+          onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+          className="mt-0.5 w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+          placeholder="Listing title"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-zinc-600">Price ($)</label>
+          <input
+            type="number"
+            value={draft.price ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value || undefined }))}
+            className="mt-0.5 w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+            placeholder="0.00"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-zinc-600">Platform</label>
+          <select
+            value={draft.platform ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, platform: e.target.value || undefined }))}
+            className="mt-0.5 w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+          >
+            <option value="">Select…</option>
+            {PLATFORM_OPTIONS.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[10px] text-zinc-600">Category</label>
+        <input
+          type="text"
+          value={draft.category ?? ""}
+          onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value || undefined }))}
+          className="mt-0.5 w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-200 focus:border-zinc-500 focus:outline-none"
+          placeholder="Category"
+        />
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          onClick={onCancel}
+          className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400"
+        >
+          <X className="h-3 w-3" />
+          Cancel
+        </button>
+        <button
+          onClick={() => onSave(draft)}
+          className="flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/20"
+        >
+          <Save className="h-3 w-3" />
+          Save Corrections
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function OcrBatchQueue({ files, onExtracted }: OcrBatchQueueProps) {
   const [entries, setEntries] = useState<OcrBatchEntry[]>(() =>
     buildInitialEntries(files)
   );
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const processingRef = useRef(false);
 
   function updateEntry(idx: number, patch: Partial<OcrBatchEntry>) {
@@ -242,23 +338,41 @@ export function OcrBatchQueue({ files, onExtracted }: OcrBatchQueueProps) {
                   </div>
                 )}
 
-                {/* Extracted fields summary */}
-                {entry.status === "done" && entry.fields && (
+                {/* Extracted fields summary + edit */}
+                {entry.status === "done" && entry.fields && editingIdx !== idx && (
                   <div className="mt-2 space-y-1">
-                    <div className="flex items-center gap-2">
-                      {entry.fields.confidence && (
-                        <span
-                          className={`rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                            CONFIDENCE_COLORS[entry.fields.confidence] ?? CONFIDENCE_COLORS.none
-                          }`}
-                        >
-                          {entry.fields.confidence} confidence
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {entry.fields.confidence && (
+                          <span
+                            className={`rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                              CONFIDENCE_COLORS[entry.fields.confidence] ?? CONFIDENCE_COLORS.none
+                            }`}
+                          >
+                            {entry.fields.confidence} confidence
+                          </span>
+                        )}
+                        {entry.edited && (
+                          <span className="rounded border border-blue-400/30 bg-blue-400/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-400">
+                            Edited
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setEditingIdx(idx)}
+                        className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400"
+                      >
+                        <Pencil className="h-2.5 w-2.5" />
+                        Edit
+                      </button>
                     </div>
-                    {entry.fields.title && (
+                    {entry.fields.title ? (
                       <p className="truncate text-[11px] text-zinc-400">
                         <span className="text-zinc-600">Title: </span>{entry.fields.title}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-orange-400">
+                        No title extracted — click Edit to enter manually
                       </p>
                     )}
                     {entry.fields.price !== undefined && (
@@ -266,12 +380,25 @@ export function OcrBatchQueue({ files, onExtracted }: OcrBatchQueueProps) {
                         <span className="text-zinc-600">Price: </span>${entry.fields.price}
                       </p>
                     )}
-                    {!entry.fields.title && (
-                      <p className="text-[11px] text-orange-400">
-                        No title extracted — may need manual entry
+                    {entry.fields.platform && (
+                      <p className="text-[11px] text-zinc-400">
+                        <span className="text-zinc-600">Platform: </span>{entry.fields.platform}
                       </p>
                     )}
                   </div>
+                )}
+
+                {/* Inline edit form */}
+                {entry.status === "done" && entry.fields && editingIdx === idx && (
+                  <EditForm
+                    fields={entry.fields}
+                    onSave={(updated) => {
+                      updateEntry(idx, { fields: updated, edited: true });
+                      onExtracted(idx, updated);
+                      setEditingIdx(null);
+                    }}
+                    onCancel={() => setEditingIdx(null)}
+                  />
                 )}
               </div>
 

@@ -17,7 +17,8 @@ export type FeatureKey =
   | "scheduled_imports"
   | "multi_platform"
   | "bulk_actions"
-  | "automation_rules";
+  | "automation_rules"
+  | "automation_scheduling";
 
 export type PlanTier = {
   id: PlanId;
@@ -72,6 +73,7 @@ export const PLANS: Record<PlanId, PlanTier> = {
       "multi_platform",
       "bulk_actions",
       "automation_rules",
+      "automation_scheduling",
     ],
   },
   business: {
@@ -94,6 +96,7 @@ export const PLANS: Record<PlanId, PlanTier> = {
       "multi_platform",
       "bulk_actions",
       "automation_rules",
+      "automation_scheduling",
     ],
   },
 };

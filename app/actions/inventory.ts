@@ -256,6 +256,13 @@ export async function importInventoryItems(
     durationMs,
   });
 
+  // Fire automation rule evaluation after a successful import (fire-and-forget)
+  if (inserted > 0) {
+    import("./automation").then(({ evaluateRulesForUser }) => {
+      evaluateRulesForUser().catch(() => {});
+    }).catch(() => {});
+  }
+
   return { inserted, skipped, duplicates, quarantined, errors, batch_id, quota_warning };
 }
 

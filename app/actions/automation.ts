@@ -1,8 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { evaluateAutomationRules } from "@/lib/automation/engine";
-import type { ScoredItem, VisibilityRisk, RecoveryAction } from "@/lib/types";
+import { runAutomationForUser } from "@/lib/automation/runner";
 
 export type AutomationRule = {
   id: string;
@@ -130,7 +129,8 @@ export type AutomationRun = {
 };
 
 // ─── Evaluate Rules For User ──────────────────────────────────────────────────
-// Fetches active inventory from DB, runs the evaluation engine, persists tasks.
+// Delegates to lib/automation/runner so the same logic can be used from the
+// cron route (with a service-role client) without duplicating code.
 
 export async function evaluateRulesForUser(): Promise<{
   ok: boolean;
@@ -143,97 +143,9 @@ export async function evaluateRulesForUser(): Promise<{
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { ok: false, tasksCreated: 0, itemsScanned: 0, error: "Not authenticated" };
 
-    // 1. Fetch enabled rules
-    const { data: rulesData } = await supabase
-      .from("automation_rules")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("enabled", true);
-    const rules = (rulesData ?? []) as AutomationRule[];
-    if (rules.length === 0) return { ok: true, tasksCreated: 0, itemsScanned: 0 };
-
-    // 2. Fetch active inventory with cached scores
-    const { data: itemsData } = await supabase
-      .from("inventory_items")
-      .select("id,user_id,title,platform,category,price,original_price,cost_basis,days_listed,date_listed,status,item_specifics_complete,image_count,title_keyword_strength,has_promoted_listing,shipping_type,shipping_cost,views,watchers,impressions,dead_inventory_score,listing_health_score,visibility_risk,primary_recovery_action,estimated_recovery,notes,tags,image_url,created_at,updated_at")
-      .eq("user_id", user.id)
-      .eq("status", "active");
-
-    const rawItems = itemsData ?? [];
-    const scoredItems: ScoredItem[] = rawItems.map((item) => ({
-      ...item,
-      dead_inventory_score: item.dead_inventory_score ?? 0,
-      listing_health_score: item.listing_health_score ?? 50,
-      visibility_risk: (item.visibility_risk ?? "Low") as VisibilityRisk,
-      primary_recovery_action: (item.primary_recovery_action ?? "hold") as RecoveryAction,
-      estimated_recovery: item.estimated_recovery ?? item.price ?? 0,
-    }));
-
-    // 3. Run evaluation engine
-    const results = evaluateAutomationRules(rules, scoredItems);
-    const itemsScanned = scoredItems.length;
-
-    // 4. Fetch existing queued tasks to avoid duplicates
-    const { data: existingTasks } = await supabase
-      .from("automation_tasks")
-      .select("item_id,rule_type")
-      .eq("user_id", user.id)
-      .in("status", ["queued", "pending_review"]);
-    const existingSet = new Set(
-      (existingTasks ?? []).map((t: { item_id: string; rule_type: string }) => `${t.item_id}:${t.rule_type}`)
-    );
-
-    // 5. Build new tasks (skip already-queued combos)
-    const now = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 7 * 86_400_000).toISOString();
-
-    const newTasks = results.flatMap((result) =>
-      result.triggeredItems
-        .filter((item) => !existingSet.has(`${item.id}:${result.ruleType}`))
-        .map((item) => ({
-          user_id: user.id,
-          rule_id: result.ruleId ?? null,
-          rule_type: result.ruleType,
-          item_id: item.id,
-          suggested_action: result.suggestedAction,
-          alert_message: result.alertMessage,
-          status: "queued" as AutomationTaskStatus,
-          queued_at: now,
-          expires_at: expiresAt,
-          dead_score_snapshot: item.dead_inventory_score ?? null,
-          days_listed_snapshot: item.days_listed ?? null,
-          price_snapshot: item.price ?? null,
-        }))
-    );
-
-    if (newTasks.length > 0) {
-      await supabase.from("automation_tasks").insert(newTasks);
-    }
-
-    // 6. Log the run
-    await supabase.from("automation_runs").insert({
-      user_id: user.id,
-      triggered_by: "manual",
-      rules_evaluated: rules.length,
-      tasks_created: newTasks.length,
-      items_scanned: itemsScanned,
-    });
-
-    // 7. Update last_run_at + run_count on matched rules
-    for (const result of results) {
-      if (result.ruleId) {
-        await supabase
-          .from("automation_rules")
-          .update({
-            last_run_at: now,
-            updated_at: now,
-          })
-          .eq("id", result.ruleId)
-          .eq("user_id", user.id);
-      }
-    }
-
-    return { ok: true, tasksCreated: newTasks.length, itemsScanned };
+    const result = await runAutomationForUser(user.id, supabase);
+    if (result.error) return { ok: false, tasksCreated: 0, itemsScanned: 0, error: result.error };
+    return { ok: true, tasksCreated: result.tasksCreated, itemsScanned: result.itemsScanned };
   } catch (err) {
     return { ok: false, tasksCreated: 0, itemsScanned: 0, error: String(err) };
   }
@@ -330,5 +242,73 @@ export async function fetchAutomationHistory(limit = 20): Promise<{
     return { runs: (data ?? []) as AutomationRun[] };
   } catch {
     return { runs: [], error: "Failed to fetch history" };
+  }
+}
+
+// ─── Fetch Automation Effectiveness ──────────────────────────────────────────
+
+export type AutomationEffectiveness = {
+  total: number;
+  completed: number;
+  skipped: number;
+  queued: number;
+  completionRate: number;
+  skipRate: number;
+  lastTaskAt: string | null;
+  avgDurationMs: number | null;
+};
+
+export async function fetchAutomationEffectiveness(): Promise<AutomationEffectiveness | null> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const [tasksRes, runsRes] = await Promise.all([
+      supabase
+        .from("automation_tasks")
+        .select("status, queued_at")
+        .eq("user_id", user.id),
+      supabase
+        .from("automation_runs")
+        .select("duration_ms, ran_at")
+        .eq("user_id", user.id)
+        .not("duration_ms", "is", null)
+        .order("ran_at", { ascending: false })
+        .limit(20),
+    ]);
+
+    const tasks = tasksRes.data ?? [];
+    const runs  = runsRes.data ?? [];
+
+    const total     = tasks.length;
+    const completed = tasks.filter((t: { status: string }) => t.status === "completed").length;
+    const skipped   = tasks.filter((t: { status: string }) => t.status === "skipped").length;
+    const queued    = tasks.filter((t: { status: string }) =>
+      t.status === "queued" || t.status === "pending_review"
+    ).length;
+
+    const lastTaskAt = tasks.length > 0
+      ? tasks.sort((a: { queued_at: string }, b: { queued_at: string }) =>
+          new Date(b.queued_at).getTime() - new Date(a.queued_at).getTime()
+        )[0].queued_at
+      : null;
+
+    const avgDurationMs = runs.length > 0
+      ? Math.round(runs.reduce((s: number, r: { duration_ms: number }) => s + r.duration_ms, 0) / runs.length)
+      : null;
+
+    return {
+      total,
+      completed,
+      skipped,
+      queued,
+      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+      skipRate: total > 0 ? Math.round((skipped / total) * 100) : 0,
+      lastTaskAt,
+      avgDurationMs,
+    };
+  } catch {
+    return null;
   }
 }

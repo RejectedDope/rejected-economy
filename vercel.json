@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/snapshots",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/automation",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/queue-cleanup",
+      "schedule": "0 3 * * *"
     }
   ]
 }

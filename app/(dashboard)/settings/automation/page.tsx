@@ -13,6 +13,7 @@ import { hasFeature } from "@/lib/subscription/tiers";
 import { FeatureGate } from "@/components/subscription/FeatureGate";
 import { AutomationQueue } from "@/components/automation/AutomationQueue";
 import { AutomationHistory } from "@/components/automation/AutomationHistory";
+import { AutomationEffectiveness } from "@/components/automation/AutomationEffectiveness";
 
 type RuleConfig = {
   type: AutomationRule["rule_type"];
@@ -232,6 +233,37 @@ export default function AutomationPage() {
         </div>
       ) : (
         <div className="max-w-2xl space-y-4">
+          {/* Scheduling status */}
+          <div className={`rounded-lg border p-4 ${hasAutomationAccess ? "border-[#E935C1]/20 bg-[#E935C1]/5" : "border-zinc-800 bg-zinc-900"}`}>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-7 w-7 items-center justify-center rounded-md border ${hasAutomationAccess ? "border-[#E935C1]/30 bg-[#E935C1]/10" : "border-zinc-700 bg-zinc-800"}`}>
+                  <Clock className={`h-3.5 w-3.5 ${hasAutomationAccess ? "text-[#E935C1]" : "text-zinc-600"}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-zinc-200">Scheduled Evaluation</p>
+                  <p className="text-xs text-zinc-500">
+                    {hasAutomationAccess
+                      ? "Rules run automatically every 6 hours via background cron"
+                      : "Upgrade to Pro to enable scheduled automation evaluation"}
+                  </p>
+                </div>
+              </div>
+              {hasAutomationAccess ? (
+                <span className="shrink-0 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                  Every 6h
+                </span>
+              ) : (
+                <a
+                  href="/settings/plan"
+                  className="shrink-0 rounded border border-[#E935C1]/30 bg-[#E935C1]/10 px-2.5 py-1 text-[11px] font-bold text-[#E935C1] hover:bg-[#E935C1]/20"
+                >
+                  Upgrade →
+                </a>
+              )}
+            </div>
+          </div>
+
           {RULE_CONFIGS.map((config) => {
             const Icon = config.icon;
             const state = rules.get(config.type)!;
@@ -362,6 +394,14 @@ export default function AutomationPage() {
 
           {/* Task Queue */}
           <AutomationQueue />
+
+          {/* Effectiveness */}
+          <div className="space-y-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-zinc-600">
+              Effectiveness
+            </p>
+            <AutomationEffectiveness />
+          </div>
 
           {/* Run History */}
           <div className="space-y-3">

@@ -8,6 +8,9 @@ import {
   upsertAutomationRule,
   type AutomationRule,
 } from "@/app/actions/automation";
+import { fetchUsageSummary } from "@/app/actions/usage";
+import { hasFeature } from "@/lib/subscription/tiers";
+import { FeatureGate } from "@/components/subscription/FeatureGate";
 
 type RuleConfig = {
   type: AutomationRule["rule_type"];
@@ -24,6 +27,7 @@ type RuleConfig = {
   actionKey?: string;
   actionUnit?: string;
   actionDefault?: number;
+  proOnly?: boolean;
 };
 
 const RULE_CONFIGS: RuleConfig[] = [
@@ -54,6 +58,7 @@ const RULE_CONFIGS: RuleConfig[] = [
     actionKey: "markdown_pct",
     actionUnit: "%",
     actionDefault: 15,
+    proOnly: true,
   },
   {
     type: "auto_relist",
@@ -78,6 +83,7 @@ const RULE_CONFIGS: RuleConfig[] = [
     conditionDefault: 60,
     conditionMin: 14,
     conditionMax: 365,
+    proOnly: true,
   },
 ];
 
@@ -107,6 +113,15 @@ export default function AutomationPage() {
       )
   );
   const [loading, setLoading] = useState(true);
+  const [hasAutomationAccess, setHasAutomationAccess] = useState(false);
+
+  useEffect(() => {
+    fetchUsageSummary()
+      .then((usage) => {
+        setHasAutomationAccess(hasFeature(usage?.planId ?? null, "automation_rules"));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchAutomationRules().then(({ rules: fetched }) => {
@@ -218,10 +233,11 @@ export default function AutomationPage() {
           {RULE_CONFIGS.map((config) => {
             const Icon = config.icon;
             const state = rules.get(config.type)!;
+            const hasAccess = !config.proOnly || hasAutomationAccess;
 
             return (
+              <FeatureGate key={config.type} hasAccess={hasAccess} requiredTier="Pro" label={config.label}>
               <div
-                key={config.type}
                 className={`rounded-xl border bg-zinc-900 p-5 transition-colors ${
                   state.enabled
                     ? "border-[#E935C1]/30"
@@ -330,6 +346,7 @@ export default function AutomationPage() {
                   </div>
                 )}
               </div>
+              </FeatureGate>
             );
           })}
 

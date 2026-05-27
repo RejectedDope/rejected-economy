@@ -16,7 +16,8 @@ export type FeatureKey =
   | "api_sync"
   | "scheduled_imports"
   | "multi_platform"
-  | "bulk_actions";
+  | "bulk_actions"
+  | "automation_rules";
 
 export type PlanTier = {
   id: PlanId;
@@ -70,6 +71,7 @@ export const PLANS: Record<PlanId, PlanTier> = {
       "export_data",
       "multi_platform",
       "bulk_actions",
+      "automation_rules",
     ],
   },
   business: {
@@ -91,6 +93,7 @@ export const PLANS: Record<PlanId, PlanTier> = {
       "scheduled_imports",
       "multi_platform",
       "bulk_actions",
+      "automation_rules",
     ],
   },
 };

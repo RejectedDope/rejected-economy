@@ -3,6 +3,7 @@
 import { useReducer, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Upload, CheckCircle2, XCircle, AlertCircle, Clock } from "lucide-react";
+import { ImportHistory } from "@/components/ingestion/ImportHistory";
 
 interface UploadSession {
   id: string;
@@ -168,6 +169,10 @@ export default function UploadHistoryPage() {
           </table>
         </div>
       )}
+
+      <div className="mt-8">
+        <ImportHistory />
+      </div>
     </div>
   );
 }

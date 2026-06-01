@@ -65,7 +65,12 @@ export function RecoveryActionPanel({ item, onActionComplete }: RecoveryActionPa
         ? new Date(new Date().getTime() + snoozedMs).toISOString()
         : undefined;
 
-      await logRecoveryAction(item.id, ACTION_MAP[key], STATUS_MAP[key], {
+      // For sales, attribute to the item's own recommendation so was_recommended fires correctly
+      const actionType = key === "sold"
+        ? (item.primary_recovery_action ?? "hold")
+        : ACTION_MAP[key];
+
+      await logRecoveryAction(item.id, actionType, STATUS_MAP[key], {
         outcome,
         recoveryAmount,
         snoozedUntil,
@@ -79,7 +84,7 @@ export function RecoveryActionPanel({ item, onActionComplete }: RecoveryActionPa
       }
 
       setDone(key);
-      onActionComplete?.(ACTION_MAP[key], STATUS_MAP[key]);
+      onActionComplete?.(actionType, STATUS_MAP[key]);
     } catch (err) {
       setError(String(err));
     } finally {

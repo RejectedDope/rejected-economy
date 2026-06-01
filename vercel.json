@@ -5,14 +5,6 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/automation",
-      "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/queue-cleanup",
-      "schedule": "0 3 * * *"
-    },
-    {
       "path": "/api/cron/sync",
       "schedule": "0 4 * * *"
     }

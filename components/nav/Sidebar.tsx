@@ -14,6 +14,7 @@ import {
   FolderUp,
   CreditCard,
   Bot,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/app/actions/auth";
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/inventory/import", label: "Import Inventory", icon: FolderUp, highlight: true },
   { href: "/recovery", label: "Recovery Center", icon: Zap },
+  { href: "/outcomes", label: "Outcomes", icon: TrendingUp },
   { href: "/inventory", label: "All Inventory", icon: Package },
   { href: "/analyzer", label: "Item Analyzer", icon: Upload },
   { href: "/settings", label: "Settings", icon: Settings },

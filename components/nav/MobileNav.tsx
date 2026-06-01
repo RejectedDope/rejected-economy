@@ -8,6 +8,7 @@ import {
   Zap,
   Package,
   Settings,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/inventory/import", label: "Import", icon: FolderUp, highlight: true },
   { href: "/recovery", label: "Recover", icon: Zap },
+  { href: "/outcomes", label: "Outcomes", icon: TrendingUp },
   { href: "/inventory", label: "Stock", icon: Package },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -379,10 +379,28 @@ export async function logRecoveryAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not authenticated" };
 
+  const dbActionType = toDbAction(actionType);
+
+  // Attribution: check if this action matches the system's current recommendation for the item
+  let wasRecommended = false;
+  let recommendationSource: "scoring_engine" | null = null;
+  if (status === "completed") {
+    const { data: itemData } = await supabase
+      .from("inventory_items")
+      .select("primary_recovery_action")
+      .eq("id", itemId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (itemData?.primary_recovery_action === dbActionType) {
+      wasRecommended = true;
+      recommendationSource = "scoring_engine";
+    }
+  }
+
   const { error } = await supabase.from("recovery_actions").insert({
     item_id: itemId,
     user_id: user.id,
-    action_type: toDbAction(actionType),
+    action_type: dbActionType,
     action_status: status,
     outcome: opts.outcome ?? null,
     recovery_amount: opts.recoveryAmount ?? null,
@@ -391,6 +409,8 @@ export async function logRecoveryAction(
     days_listed_snapshot: opts.daysListed ?? null,
     dead_score_snapshot: opts.deadScore ?? null,
     price_snapshot: opts.price ?? null,
+    was_recommended: wasRecommended,
+    recommendation_source: recommendationSource,
     completed_at: status === "completed" ? new Date().toISOString() : null,
     created_at: new Date().toISOString(),
   });

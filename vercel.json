@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/automation",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/queue-cleanup",
@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/cron/sync",
-      "schedule": "0 */4 * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }

@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
 import { scoreAuditLead } from "@/lib/audit-scoring";
-import { supabaseConfigured } from "@/lib/env";
+
 import { parseAuditSubmission } from "@/lib/validation/audit-schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,8 +123,6 @@ const AUDIT_SIGNALS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// supabaseConfigured imported from @/lib/env
-
 function selectCls(hasError: boolean) {
   return [
     "flex h-10 w-full rounded-md border bg-zinc-900 px-3 py-2 text-sm text-zinc-100",
@@ -191,14 +189,6 @@ export default function RecoveryAuditPage() {
 
     setSubmitting(true);
     setSubmitError(null);
-
-    if (!supabaseConfigured) {
-      setSubmitting(false);
-      setSubmitError(
-        "⚙️ Dev mode: Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable lead capture. Run supabase/migrations/002_audit_leads.sql first."
-      );
-      return;
-    }
 
     try {
       // Sanitize through Zod schema before any DB write.

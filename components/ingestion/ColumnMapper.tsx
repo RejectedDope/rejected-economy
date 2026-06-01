@@ -34,7 +34,7 @@ function guessMapping(columns: string[]): ColumnMapping {
       price:         ["price", "current price", "buy it now price", "listing price", "sold price"],
       platform:      ["platform", "marketplace", "site"],
       category:      ["category", "ebay category", "item category"],
-      days_listed:   ["days listed", "days_listed", "age", "listing age"],
+      days_listed:   ["days listed", "days_listed", "age", "listing age", "listed on", "listing date"],
       image_count:   ["photo count", "image count", "photos", "num photos"],
       views:         ["views", "page views", "total views"],
       watchers:      ["watchers", "watching", "total watchers"],

@@ -1,10 +1,11 @@
 // ─── eBay Listing Reconciler ──────────────────────────────────────────────────
 // Reconciles a fresh set of eBay listings against the local inventory_items table.
-// Inserts new listings, updates changed ones, and marks ended listings accordingly.
-// Scoring fields are left null — they are populated by the automation cron on its
-// next run rather than synchronously here.
+// Inserts new listings (with immediate scoring), updates changed ones, and marks
+// ended listings accordingly.
 
 import { logger } from "@/lib/logger";
+import { scoreItem } from "@/lib/scoring";
+import type { InventoryItem } from "@/lib/types";
 import type { SyncedListing } from "./ebay-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -109,7 +110,30 @@ export async function reconcileEbayListings(
             result.updated++;
           }
         } else {
-          // INSERT new item — scoring fields left null for next automation run
+          // Score immediately so items appear in recovery queue without waiting for cron.
+          // Conservative defaults: days_listed=0 (unknown), no engagement data yet.
+          const itemForScoring = {
+            id:                       "",
+            user_id:                  userId,
+            title:                    listing.title ?? "",
+            platform:                 "eBay",
+            category:                 "Other",
+            price:                    listing.price ?? 0,
+            days_listed:              0,
+            item_specifics_complete:  false,
+            image_count:              1,
+            title_keyword_strength:   50,
+            has_promoted_listing:     false,
+            shipping_type:            "calculated" as const,
+            views:                    0,
+            watchers:                 0,
+            impressions:              0,
+            status:                   "active" as const,
+            created_at:               now,
+            updated_at:               now,
+          } satisfies InventoryItem;
+          const scored = scoreItem(itemForScoring);
+
           const { error: insertErr } = await supabase
             .from("inventory_items")
             .insert({
@@ -121,12 +145,12 @@ export async function reconcileEbayListings(
               sync_source:         "ebay_sync",
               platform_listing_id: listing.listingId,
               days_listed:         0,
-              // Scoring fields — populated by automation cron on next run
-              dead_inventory_score:       null,
-              listing_health_score:       null,
-              visibility_risk:            null,
-              primary_recovery_action:    null,
-              estimated_recovery:         null,
+              dead_inventory_score:    scored.dead_inventory_score,
+              listing_health_score:    scored.listing_health_score,
+              visibility_risk:         scored.visibility_risk,
+              primary_recovery_action: scored.primary_recovery_action,
+              estimated_recovery:      scored.estimated_recovery,
+              last_scored_at:          scored.last_scored_at,
               created_at: now,
               updated_at: now,
             });

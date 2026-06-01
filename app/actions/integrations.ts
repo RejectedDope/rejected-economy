@@ -166,6 +166,86 @@ export async function disconnectMarketplace(
   }
 }
 
+// ─── Manual Sync ─────────────────────────────────────────────────────────────
+
+export type ManualSyncResult = {
+  ok: boolean;
+  inserted: number;
+  updated: number;
+  ended: number;
+  error?: string;
+};
+
+export async function triggerManualSync(
+  platform: "ebay"
+): Promise<ManualSyncResult> {
+  const empty: ManualSyncResult = { ok: false, inserted: 0, updated: 0, ended: 0 };
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ...empty, error: "Not authenticated" };
+
+    const { data: conn } = await supabase
+      .from("marketplace_connections")
+      .select("id, access_token, refresh_token, token_expires_at")
+      .eq("user_id", user.id)
+      .eq("platform", platform)
+      .eq("status", "connected")
+      .maybeSingle();
+
+    if (!conn) return { ...empty, error: "No active connection found — connect eBay first" };
+
+    let accessToken: string = conn.access_token;
+
+    // Token refresh if within 5-minute buffer
+    const bufferMs  = 5 * 60 * 1000;
+    const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
+    if (expiresAt < Date.now() + bufferMs) {
+      if (!conn.refresh_token) {
+        await supabase
+          .from("marketplace_connections")
+          .update({ status: "expired", updated_at: new Date().toISOString() })
+          .eq("id", conn.id);
+        return { ...empty, error: "eBay token expired — please reconnect" };
+      }
+      const { refreshEbayToken } = await import("@/lib/sync/ebay-client");
+      const refreshed = await refreshEbayToken(user.id, conn.refresh_token, supabase);
+      if (!refreshed) {
+        await supabase
+          .from("marketplace_connections")
+          .update({ status: "expired", updated_at: new Date().toISOString() })
+          .eq("id", conn.id);
+        return { ...empty, error: "Token refresh failed — please reconnect eBay" };
+      }
+      accessToken = refreshed.accessToken;
+    }
+
+    const { fetchEbayListings } = await import("@/lib/sync/ebay-client");
+    const listings = await fetchEbayListings(accessToken);
+
+    const { reconcileEbayListings } = await import("@/lib/sync/reconciler");
+    const result = await reconcileEbayListings(user.id, listings, supabase);
+
+    const now = new Date().toISOString();
+    await supabase
+      .from("marketplace_connections")
+      .update({ last_sync_at: now, last_sync_error: null, updated_at: now })
+      .eq("id", conn.id);
+
+    logger.info("runtime", "Manual eBay sync completed", {
+      userId: user.id,
+      inserted: result.inserted,
+      updated: result.updated,
+      ended: result.ended,
+    });
+
+    return { ok: true, inserted: result.inserted, updated: result.updated, ended: result.ended };
+  } catch (err) {
+    logger.error("runtime", "Manual sync failed", { error: String(err) });
+    return { ...empty, error: String(err) };
+  }
+}
+
 export async function toggleSyncEnabled(
   platform: MarketplacePlatform,
   enabled: boolean

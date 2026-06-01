@@ -18,6 +18,7 @@ import {
   fetchMarketplaceConnections,
   getEbayAuthUrl,
   disconnectMarketplace,
+  triggerManualSync,
   type MarketplaceConnection,
   type MarketplacePlatform,
 } from "@/app/actions/integrations";
@@ -77,6 +78,7 @@ function IntegrationsContent() {
   const [loading, setLoading] = useState(true);
   const [connectingPlatform, setConnectingPlatform] = useState<MarketplacePlatform | null>(null);
   const [disconnectingPlatform, setDisconnectingPlatform] = useState<MarketplacePlatform | null>(null);
+  const [syncingPlatform, setSyncingPlatform] = useState<MarketplacePlatform | null>(null);
   const [hasIntegrationAccess, setHasIntegrationAccess] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(() => {
     const connected = searchParams.get("connected");
@@ -132,6 +134,33 @@ function IntegrationsContent() {
       window.location.href = url;
     } finally {
       setConnectingPlatform(null);
+    }
+  }
+
+  async function handleSyncNow(platform: MarketplacePlatform) {
+    if (platform !== "ebay") return;
+    setSyncingPlatform(platform);
+    try {
+      const result = await triggerManualSync(platform);
+      if (result.ok) {
+        const parts = [
+          result.inserted > 0 && `${result.inserted} added`,
+          result.updated  > 0 && `${result.updated} updated`,
+          result.ended    > 0 && `${result.ended} ended`,
+        ].filter(Boolean);
+        const summary = parts.length > 0 ? parts.join(", ") : "No changes";
+        setToast({ message: `Sync complete — ${summary}`, type: "success" });
+        // Refresh connections to update last_sync_at
+        fetchMarketplaceConnections().then(({ connections: fetched }) => {
+          const map = new Map<MarketplacePlatform, MarketplaceConnection>();
+          for (const c of fetched) map.set(c.platform, c);
+          setConnections(map);
+        }).catch(() => {});
+      } else {
+        setToast({ message: result.error ?? "Sync failed", type: "error" });
+      }
+    } finally {
+      setSyncingPlatform(null);
     }
   }
 
@@ -224,6 +253,7 @@ function IntegrationsContent() {
             const isOAuth     = meta.oauthSupported;
             const isConnecting   = connectingPlatform === platform;
             const isDisconnecting = disconnectingPlatform === platform;
+            const isSyncing = syncingPlatform === platform;
 
             return (
               <FeatureGate
@@ -289,12 +319,12 @@ function IntegrationsContent() {
                       {isConnected ? (
                         <>
                           <button
-                            onClick={() => {}}
-                            className="flex items-center gap-1 rounded border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
-                            title="Trigger manual sync"
+                            onClick={() => handleSyncNow(platform)}
+                            disabled={isSyncing || !!syncingPlatform}
+                            className="flex items-center gap-1 rounded border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-[11px] font-semibold text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 disabled:opacity-50"
                           >
-                            <RefreshCw className="h-3 w-3" />
-                            Sync Now
+                            <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} />
+                            {isSyncing ? "Syncing…" : "Sync Now"}
                           </button>
                           <button
                             onClick={() => handleDisconnect(platform)}

@@ -1,14 +1,16 @@
--- Recovery attribution: tracks whether each recovery action was AI-recommended
--- and surfaces per-action-type effectiveness for recommendation weighting.
+-- Recovery attribution: tracks whether each recovery action followed a platform
+-- recommendation, and surfaces per-action-type effectiveness for ranking.
 
 -- ─── recovery_actions: attribution columns ────────────────────────────────────
 
 alter table recovery_actions
-  add column if not exists was_recommended  boolean not null default false,
-  add column if not exists recommendation_id uuid references recovery_actions(id) on delete set null;
+  add column if not exists was_recommended       boolean not null default false,
+  add column if not exists recommendation_source text check (recommendation_source in ('scoring_engine', 'automation_rule', 'manual', 'crosslist_suggestion')),
+  add column if not exists recommendation_id     uuid references recovery_actions(id) on delete set null;
 
-comment on column recovery_actions.was_recommended    is 'True when the user acted on an AI-generated recommendation for this item+action_type.';
-comment on column recovery_actions.recommendation_id  is 'Optional reference to the originating recovery_action row that carried the AI recommendation.';
+comment on column recovery_actions.was_recommended       is 'True when the user followed a platform recommendation for this item+action_type.';
+comment on column recovery_actions.recommendation_source is 'Which subsystem generated the recommendation: scoring_engine, automation_rule, manual, or crosslist_suggestion.';
+comment on column recovery_actions.recommendation_id     is 'Optional reference to the originating recovery_action row that carried the recommendation.';
 
 -- ─── Indexes ──────────────────────────────────────────────────────────────────
 

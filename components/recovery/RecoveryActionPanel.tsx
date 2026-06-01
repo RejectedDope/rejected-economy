@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CheckCircle2, RefreshCw, DollarSign, Archive, Clock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ScoredItem } from "@/lib/types";
@@ -108,6 +109,13 @@ export function RecoveryActionPanel({ item, onActionComplete }: RecoveryActionPa
 
   if (done) {
     const action = ACTIONS.find((a) => a.key === done)!;
+    const nextSteps =
+      done === "sold"
+        ? [{ href: "/outcomes", label: "See your outcomes →" }]
+        : done === "relisted" || done === "liquidated"
+        ? [{ href: "/recovery", label: "Continue working the queue →" }]
+        : [{ href: "/recovery", label: "Back to recovery queue →" }];
+
     return (
       <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-5 py-4">
         <div className="flex items-center gap-3">
@@ -116,6 +124,17 @@ export function RecoveryActionPanel({ item, onActionComplete }: RecoveryActionPa
             <p className="text-sm font-bold text-zinc-200">{action.label} recorded</p>
             <p className="text-xs text-zinc-500">Outcome logged to recovery history</p>
           </div>
+        </div>
+        <div className="mt-3 flex gap-3 pl-8">
+          {nextSteps.map((step) => (
+            <Link
+              key={step.href}
+              href={step.href}
+              className="text-xs font-semibold text-[#E935C1] hover:underline"
+            >
+              {step.label}
+            </Link>
+          ))}
         </div>
       </div>
     );

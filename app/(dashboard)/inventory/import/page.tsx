@@ -397,9 +397,30 @@ export default function ImportPage() {
           )}
 
           {parseError && (
-            <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
-              <p className="text-sm text-red-300">{parseError}</p>
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400" />
+                <p className="text-sm text-red-300">{parseError}</p>
+              </div>
+              <div className="mt-3 space-y-1.5 pl-7">
+                <p className="text-xs font-semibold text-zinc-400">What to try:</p>
+                <ul className="space-y-1 text-xs text-zinc-500">
+                  <li>• Open the file in Excel or Google Sheets and confirm it has a header row</li>
+                  <li>• Make sure there is a column for item title and one for price</li>
+                  <li>• Re-export from your marketplace (eBay, Poshmark) and try again</li>
+                  {detectedHeaders.length > 0 && (
+                    <li>
+                      •{" "}
+                      <button
+                        onClick={() => { setParseError(null); setStage("map"); }}
+                        className="text-[#E935C1] hover:underline"
+                      >
+                        Try re-mapping columns manually →
+                      </button>
+                    </li>
+                  )}
+                </ul>
+              </div>
             </div>
           )}
 

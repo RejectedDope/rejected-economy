@@ -102,6 +102,36 @@ export async function signOutAction(): Promise<AuthResult> {
   }
 }
 
+// ─── Reset Password ───────────────────────────────────────────────────────────
+
+export async function resetPasswordAction(email: string): Promise<AuthResult> {
+  try {
+    const supabase = await createClient();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+    const redirectTo = `${appUrl}/auth/callback?next=/update-password`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Reset failed";
+    logger.error("auth", "Reset password threw", err);
+    return { ok: false, error: message };
+  }
+}
+
+export async function updatePasswordAction(password: string): Promise<AuthResult> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Password update failed";
+    logger.error("auth", "Update password threw", err);
+    return { ok: false, error: message };
+  }
+}
+
 // ─── Get Current User ─────────────────────────────────────────────────────────
 
 export async function getCurrentUser(): Promise<{

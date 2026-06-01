@@ -12,7 +12,6 @@ import {
   DollarSign,
   ImageIcon,
   Tag,
-  Package,
   Truck,
   Loader2,
 } from "lucide-react";
@@ -21,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
 import { scoreAuditLead } from "@/lib/audit-scoring";
+import { supabaseConfigured } from "@/lib/env";
+import { parseAuditSubmission } from "@/lib/validation/audit-schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,9 +123,7 @@ const AUDIT_SIGNALS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const supabaseConfigured =
-  !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co";
+// supabaseConfigured imported from @/lib/env
 
 function selectCls(hasError: boolean) {
   return [
@@ -202,18 +201,46 @@ export default function RecoveryAuditPage() {
     }
 
     try {
+      // Sanitize through Zod schema before any DB write.
+      // Handles trimming, email lowercasing, URL validation, and enum guards.
+      const parsed = parseAuditSubmission({
+        name:             form.name,
+        email:            form.email,
+        primary_platform: form.platform,
+        inventory_count:  form.inventory_count,
+        biggest_problem:  form.biggest_problem,
+        listing_url:      form.listing_url,
+        notes:            form.notes,
+      });
+
+      if (!parsed.success) {
+        // Map schema field errors back to form field names
+        const mapped: FormErrors = {};
+        if (parsed.errors.name)             mapped.name = parsed.errors.name;
+        if (parsed.errors.email)            mapped.email = parsed.errors.email;
+        if (parsed.errors.primary_platform) mapped.platform = parsed.errors.primary_platform;
+        if (parsed.errors.inventory_count)  mapped.inventory_count = parsed.errors.inventory_count;
+        if (parsed.errors.biggest_problem)  mapped.biggest_problem = parsed.errors.biggest_problem;
+        if (parsed.errors.listing_url)      mapped.listing_url = parsed.errors.listing_url;
+        if (parsed.errors.notes)            mapped.notes = parsed.errors.notes;
+        setErrors(mapped);
+        setSubmitting(false);
+        return;
+      }
+
+      const sanitized = parsed.data;
       const supabase = createClient();
 
-      const { data: inserted, error } = await supabase
-        .from("audit_leads")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: inserted, error } = await (supabase.from("audit_leads") as any)
         .insert({
-          name:             form.name.trim(),
-          email:            form.email.trim().toLowerCase(),
-          primary_platform: form.platform,
-          inventory_count:  form.inventory_count,
-          biggest_problem:  form.biggest_problem,
-          listing_url:      form.listing_url.trim() || null,
-          notes:            form.notes.trim() || null,
+          name:             sanitized.name,
+          email:            sanitized.email,
+          primary_platform: sanitized.primary_platform,
+          inventory_count:  sanitized.inventory_count,
+          biggest_problem:  sanitized.biggest_problem,
+          listing_url:      sanitized.listing_url ?? null,
+          notes:            sanitized.notes ?? null,
         })
         .select("id")
         .single();
@@ -222,22 +249,33 @@ export default function RecoveryAuditPage() {
 
       if (inserted?.id) {
         const scores = scoreAuditLead({
-          biggest_problem:  form.biggest_problem,
-          inventory_count:  form.inventory_count,
-          primary_platform: form.platform,
+          biggest_problem:  sanitized.biggest_problem,
+          inventory_count:  sanitized.inventory_count,
+          primary_platform: sanitized.primary_platform,
         });
-        await supabase
-          .from("audit_leads")
+        // Best-effort scoring update — won't fail lead capture if migration 003 is missing
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase.from("audit_leads") as any)
           .update(scores)
           .eq("id", inserted.id);
       }
 
       setSubmitted(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      setSubmitError(
-        `Couldn't save your audit request. Please try again. (${message})`
-      );
+      // Supabase PostgrestError is a plain object {message, details, hint, code}, not instanceof Error
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+          ? String((err as Record<string, unknown>).message)
+          : typeof err === "string"
+          ? err
+          : "Submission failed — check your connection and try again";
+      const detail =
+        typeof err === "object" && err !== null && "code" in err
+          ? ` (code: ${(err as Record<string, unknown>).code})`
+          : "";
+      setSubmitError(`Couldn't save your audit request. ${message}${detail}`);
     } finally {
       setSubmitting(false);
     }

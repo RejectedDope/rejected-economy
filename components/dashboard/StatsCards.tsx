@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingDown, AlertTriangle, DollarSign, Clock, Skull } from "lucide-react";
+import { AlertTriangle, DollarSign, Clock, Skull } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import type { DashboardStats } from "@/lib/types";
 

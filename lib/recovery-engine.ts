@@ -4,7 +4,6 @@ import type {
   RecoveryAction,
   RecoveryAnalysis,
   PlatformGuidance,
-  PlatformGuidanceStep,
   WarningSignal,
   PricingRisk,
   SaturationLevel,
@@ -494,7 +493,7 @@ const GUIDANCE_MAP: GuidanceMap = {
       timing_tip: "List Tuesday–Thursday evenings for maximum initial impression traffic.",
     }),
 
-    optimize_specifics: (item) => ({
+    optimize_specifics: (_item) => ({
       platform: "eBay",
       action: "optimize_specifics",
       title: "Complete Item Specifics",
@@ -577,7 +576,7 @@ const GUIDANCE_MAP: GuidanceMap = {
       estimated_time_to_outcome: "7–21 days",
     }),
 
-    move_platform: (item) => ({
+    move_platform: (_item) => ({
       platform: "eBay",
       action: "move_platform",
       title: "Move to a Better Platform",
@@ -617,7 +616,7 @@ const GUIDANCE_MAP: GuidanceMap = {
       estimated_time_to_outcome: "3–10 days post-update",
     }),
 
-    sell_similar: (item) => ({
+    sell_similar: (_item) => ({
       platform: "eBay",
       action: "sell_similar",
       title: "Use Sell Similar — Fresh Impressions, Zero Effort",
@@ -701,7 +700,7 @@ const GUIDANCE_MAP: GuidanceMap = {
       estimated_time_to_outcome: "24–72 hours",
     }),
 
-    relist_now: (item) => ({
+    relist_now: (_item) => ({
       platform: "Poshmark",
       action: "relist_now",
       title: "Relist for Feed Visibility",
@@ -721,7 +720,7 @@ const GUIDANCE_MAP: GuidanceMap = {
       estimated_time_to_outcome: "3–14 days",
     }),
 
-    add_photos: (item) => ({
+    add_photos: (_item) => ({
       platform: "Poshmark",
       action: "add_photos",
       title: "Upgrade Listing Photos",
@@ -766,7 +765,7 @@ const GUIDANCE_MAP: GuidanceMap = {
       estimated_time_to_outcome: "2–7 days",
     }),
 
-    relist_now: (item) => ({
+    relist_now: (_item) => ({
       platform: "Mercari",
       action: "relist_now",
       title: "Relist for Fresh Visibility",
@@ -792,7 +791,7 @@ const GUIDANCE_MAP: GuidanceMap = {
   // ──────────────────────────────────────────────────────────────────────────
 
   Depop: {
-    relist_now: (item) => ({
+    relist_now: (_item) => ({
       platform: "Depop",
       action: "relist_now",
       title: "Refresh Listing for Explore Feed",
@@ -812,7 +811,7 @@ const GUIDANCE_MAP: GuidanceMap = {
       estimated_time_to_outcome: "3–14 days",
     }),
 
-    add_photos: (item) => ({
+    add_photos: (_item) => ({
       platform: "Depop",
       action: "add_photos",
       title: "Improve Photography",

@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { RISK_COLORS, RISK_BG } from "@/lib/scoring";
 import { formatCurrency } from "@/lib/utils";
 import type { ScoredItem } from "@/lib/types";
 

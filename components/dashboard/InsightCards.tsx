@@ -9,7 +9,7 @@ interface InsightCardsProps {
   items: ScoredItem[];
 }
 
-export function InsightCards({ stats, items }: InsightCardsProps) {
+export function InsightCards({ stats: _stats, items }: InsightCardsProps) {
   const criticalItems = items.filter((i) => i.visibility_risk === "Critical");
   const missingSpecifics = items.filter(
     (i) => !i.item_specifics_complete && i.status === "active"

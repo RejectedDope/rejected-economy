@@ -20,7 +20,6 @@ import type { InventoryItem } from "./types";
 //   Low: fresh listings with healthy watcher-to-view ratios
 // ─────────────────────────────────────────────────────────────────────────────
 
-const NOW = new Date().toISOString();
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
 
 export const MOCK_ITEMS: InventoryItem[] = [

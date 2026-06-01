@@ -23,6 +23,35 @@ export type ItemStatus = "active" | "sold" | "ended" | "draft" | "relisted";
 
 export type ShippingType = "free" | "calculated" | "flat" | "local_pickup";
 
+// ─── Inventory Lifecycle ──────────────────────────────────────────────────────
+// Operational health stage of a listing.
+// Derived from age + scoring signals, NOT from ItemStatus.
+
+export type LifecycleStage =
+  | "newly_imported"   // < 14 days — peak organic visibility
+  | "active"           // 14–60 days — performing within normal range
+  | "slowing"          // 60–90 days — engagement declining, approaching cliff
+  | "stale"            // 90–180 days — past the freshness cliff
+  | "critical"         // 180+ days — deep decay, immediate action needed
+  | "liquidating"      // marked for clearance pricing
+  | "sold"             // completed sale
+  | "archived";        // ended/removed
+
+// Recovery event tracking types
+export type RecoveryEventType =
+  | "markdown_performed"
+  | "relisted"
+  | "sell_similar_used"
+  | "promoted"
+  | "crosslisted"
+  | "bundled"
+  | "liquidated"
+  | "title_rewritten"
+  | "photos_updated"
+  | "specifics_completed"
+  | "sold"
+  | "ended";
+
 // ─── Scoring & Risk Types ─────────────────────────────────────────────────────
 
 // Dead Inventory Score risk tiers
@@ -310,6 +339,8 @@ export interface DashboardStats {
   critical_count: number;
   high_risk_count: number;
   avg_days_listed: number;
+  stale_count: number;
+  stale_cash: number;
   aging_breakdown: AgingBucket[];
   platform_breakdown: PlatformBucket[];
 }

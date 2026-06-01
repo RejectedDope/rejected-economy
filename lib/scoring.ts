@@ -10,6 +10,7 @@ import type {
   PricingPosition,
   PricingAnalysis,
 } from "./types";
+import { getRecoveryMultiplier } from "./recovery/registry";
 
 // ─── Scoring Specification ────────────────────────────────────────────────────
 //
@@ -61,7 +62,8 @@ export function calcDeadScore(item: InventoryItem): number {
   else if (item.days_listed <= 60)  score += 14;
   else if (item.days_listed <= 90)  score += 22;
   else if (item.days_listed <= 180) score += 28;
-  else                              score += 35; // 181d+ = buried, no freshness left
+  else if (item.days_listed < 365)  score += 35; // 181–364d = buried
+  else                              score += 38; // 365d+ = market has permanently rejected
 
   // ── pricing_competitiveness: 20 pts max ─────────────────────────────────
   // Price rejection: high views + zero watchers = buyers are seeing it and walking.
@@ -80,7 +82,8 @@ export function calcDeadScore(item: InventoryItem): number {
   // ── visibility_signals: 15 pts max ──────────────────────────────────────
   // Watcher deficit and view velocity measure how much algorithmic placement remains.
   let visPts = 0;
-  if (item.watchers === 0 && item.days_listed >= 60)       visPts += 7; // dead in the water
+  if (item.watchers === 0 && item.days_listed >= 365)      visPts += 9; // year+ no interest: concluded rejection
+  else if (item.watchers === 0 && item.days_listed >= 60)  visPts += 7; // dead in the water
   else if (item.watchers === 0 && item.days_listed >= 30)  visPts += 4;
   else if (item.watchers <= 1 && item.days_listed >= 90)   visPts += 3;
   const viewsPerDay = item.days_listed > 0 ? item.views / item.days_listed : item.views;
@@ -263,8 +266,9 @@ export function calcPrimaryAction(item: InventoryItem): RecoveryAction {
   const risk = calcVisibilityRisk(item);
 
   if (risk === "Critical") {
-    if (item.price < 15) return "bundle"; // too cheap to justify solo relist
-    return "relist_now";                  // full reset: end + fresh listing
+    if (item.days_listed >= 365) return "liquidate"; // year+ = market permanently rejected this price
+    if (item.price < 15) return "bundle";            // too cheap to justify solo relist
+    return "relist_now";                             // full reset: end + fresh listing
   }
 
   if (risk === "High") {
@@ -304,22 +308,7 @@ export function calcPrimaryAction(item: InventoryItem): RecoveryAction {
 
 export function calcEstimatedRecovery(item: InventoryItem): number {
   const action = calcPrimaryAction(item);
-  const price = item.price;
-
-  const recoveryRates: Record<RecoveryAction, number> = {
-    hold:                1.00, // no action needed, full price expected
-    add_photos:          0.92, // CTR improvement, near-full recovery
-    title_rewrite:       0.90, // free fix, high recovery potential
-    optimize_specifics:  0.88, // enters filtered search, strong recovery
-    sell_similar:        0.82, // fresh impressions, slight price test likely
-    relist_now:          0.78, // full reset, small price concession typical
-    move_platform:       0.72, // platform shift carries friction cost
-    strategic_markdown:  0.65, // deliberate cut to trigger activity
-    bundle:              0.50, // bundled items sell for less per unit
-    liquidate:           0.25, // 20–30 cents on the dollar
-  };
-
-  return Math.round(price * (recoveryRates[action] ?? 0.6) * 100) / 100;
+  return Math.round(item.price * getRecoveryMultiplier(action) * 100) / 100;
 }
 
 // ─── Composite Scorer ─────────────────────────────────────────────────────────
@@ -388,6 +377,11 @@ export function calcDashboardStats(items: InventoryItem[]): DashboardStats {
     if (item.dead_inventory_score >= 50) bucket.dead_count++;
   }
 
+  // Stale = listed 60+ days and not sold (algorithm cliff)
+  const staleItems = active.filter((i) => i.days_listed >= 60);
+  const stale_count = staleItems.length;
+  const stale_cash = staleItems.reduce((s, i) => s + i.price, 0);
+
   return {
     total_items: active.length,
     trapped_cash,
@@ -395,6 +389,8 @@ export function calcDashboardStats(items: InventoryItem[]): DashboardStats {
     critical_count,
     high_risk_count,
     avg_days_listed,
+    stale_count,
+    stale_cash,
     aging_breakdown: buckets,
     platform_breakdown: Array.from(platformMap.values()).sort((a, b) => b.value - a.value),
   };

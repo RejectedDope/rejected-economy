@@ -60,7 +60,6 @@ interface CSVUploaderProps {
 export function CSVUploader({ userId, onComplete }: CSVUploaderProps) {
   const [status, setStatus] = useState<"idle" | "parsing" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
-  const [count, setCount] = useState(0);
 
   const processFile = useCallback(
     (file: File) => {
@@ -84,7 +83,6 @@ export function CSVUploader({ userId, onComplete }: CSVUploaderProps) {
               })
               .filter(Boolean) as InventoryItem[];
 
-            setCount(items.length);
             setStatus("done");
             setMessage(`${items.length} listings imported and scored.`);
             onComplete(items);
@@ -199,7 +197,7 @@ export function CSVUploader({ userId, onComplete }: CSVUploaderProps) {
         </p>
         <ol className="mt-2 space-y-1 text-xs text-zinc-600">
           <li>1. Go to Seller Hub → Active Listings</li>
-          <li>2. Click "Download report" → Select CSV</li>
+          <li>2. Click &ldquo;Download report&rdquo; → Select CSV</li>
           <li>3. Upload the downloaded file above</li>
         </ol>
       </div>

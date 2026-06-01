@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { Settings, Database, Bell, User, ShieldCheck, Zap } from "lucide-react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Settings, Database, Bell, User, Zap, CheckCircle2, CreditCard, ChevronRight, Bot, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 const PLATFORMS = ["eBay", "Poshmark", "Mercari", "Depop", "Facebook Marketplace", "StockX", "GOAT", "Whatnot"];
-const CATEGORIES = ["Vintage Clothing", "Sneakers", "Electronics", "Streetwear", "Collectibles", "Handbags", "Cameras", "Accessories", "Other"];
 
 export default function SettingsPage() {
   const [primaryPlatform, setPrimaryPlatform] = useState("eBay");
@@ -17,11 +17,47 @@ export default function SettingsPage() {
     stale_critical: 90,
     dead_threshold: 180,
   });
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  function handleSave() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Load existing settings on mount
+  useEffect(() => {
+    import("@/app/actions/settings").then(({ fetchUserSettings }) => {
+      fetchUserSettings().then(({ settings }) => {
+        if (!settings) return;
+        setPrimaryPlatform(settings.primary_platform ?? "eBay");
+        setThresholds({
+          stale_warning: settings.stale_warning_days ?? 60,
+          stale_critical: settings.stale_critical_days ?? 90,
+          dead_threshold: settings.dead_threshold_days ?? 180,
+        });
+      }).catch(() => {/* unauthenticated — use defaults */});
+    });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const { saveUserSettings } = await import("@/app/actions/settings");
+      const result = await saveUserSettings({
+        primary_platform: primaryPlatform as Parameters<typeof saveUserSettings>[0]["primary_platform"],
+        stale_warning_days: thresholds.stale_warning,
+        stale_critical_days: thresholds.stale_critical,
+        dead_threshold_days: thresholds.dead_threshold,
+      });
+      if (!result.ok) {
+        setSaveError(result.error ?? "Save failed");
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } catch (err) {
+      setSaveError(String(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -41,6 +77,57 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-2xl space-y-8">
+        {/* Plan & Usage quick-link */}
+        <Link
+          href="/settings/plan"
+          className="group flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-zinc-600"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800">
+              <CreditCard className="h-4 w-4 text-[#E935C1]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Plan & Usage</p>
+              <p className="text-xs text-zinc-500">View your current plan, quota usage, and feature access</p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-400" />
+        </Link>
+
+        {/* Integrations quick-link */}
+        <Link
+          href="/settings/integrations"
+          className="group flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-zinc-600"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800">
+              <Plug className="h-4 w-4 text-[#E935C1]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Marketplace Integrations</p>
+              <p className="text-xs text-zinc-500">Connect selling accounts for recurring inventory sync</p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-400" />
+        </Link>
+
+        {/* Automation quick-link */}
+        <Link
+          href="/settings/automation"
+          className="group flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-zinc-600"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-800">
+              <Bot className="h-4 w-4 text-[#E935C1]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-zinc-200">Automation Rules</p>
+              <p className="text-xs text-zinc-500">Configure stale alerts, markdown triggers, and relist flags</p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-zinc-400" />
+        </Link>
+
         {/* Profile section */}
         <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
           <div className="mb-5 flex items-center gap-2">
@@ -212,10 +299,14 @@ export default function SettingsPage() {
 
         {/* Save button */}
         <div className="flex items-center gap-3">
-          <Button onClick={handleSave} className={saved ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
-            {saved ? "Saved!" : "Save Settings"}
+          <Button onClick={handleSave} disabled={saving} className={saved ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
+            {saving ? "Saving…" : saved ? (
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Saved</span>
+            ) : "Save Settings"}
           </Button>
-          <Button variant="ghost">Cancel</Button>
+          {saveError && (
+            <p className="text-xs text-red-400">{saveError}</p>
+          )}
         </div>
       </div>
     </div>

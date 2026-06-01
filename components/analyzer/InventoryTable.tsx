@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import type { ScoredItem, VisibilityRisk } from "@/lib/types";
@@ -29,17 +28,31 @@ const ACTION_LABELS: Record<string, string> = {
 type SortKey = "dead_inventory_score" | "days_listed" | "price" | "listing_health_score";
 type SortDir = "asc" | "desc";
 
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-zinc-600" />;
+  return sortDir === "asc" ? (
+    <ArrowUp className="h-3 w-3 text-[#E935C1]" />
+  ) : (
+    <ArrowDown className="h-3 w-3 text-[#E935C1]" />
+  );
+}
+
 interface InventoryTableProps {
   items: ScoredItem[];
 }
+
+const INITIAL_DISPLAY = 150;
+const LOAD_MORE_INCREMENT = 100;
 
 export function InventoryTable({ items }: InventoryTableProps) {
   const [query, setQuery] = useState("");
   const [riskFilter, setRiskFilter] = useState<VisibilityRisk | "All">("All");
   const [sortKey, setSortKey] = useState<SortKey>("dead_inventory_score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [displayLimit, setDisplayLimit] = useState(INITIAL_DISPLAY);
 
   const handleSort = (key: SortKey) => {
+    setDisplayLimit(INITIAL_DISPLAY);
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -47,6 +60,9 @@ export function InventoryTable({ items }: InventoryTableProps) {
       setSortDir("desc");
     }
   };
+
+  const handleQueryChange = (v: string) => { setQuery(v); setDisplayLimit(INITIAL_DISPLAY); };
+  const handleRiskChange  = (v: VisibilityRisk | "All") => { setRiskFilter(v); setDisplayLimit(INITIAL_DISPLAY); };
 
   const filtered = items
     .filter((i) => {
@@ -62,14 +78,8 @@ export function InventoryTable({ items }: InventoryTableProps) {
       return (a[sortKey] - b[sortKey]) * mult;
     });
 
-  const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 text-zinc-600" />;
-    return sortDir === "asc" ? (
-      <ArrowUp className="h-3 w-3 text-[#E935C1]" />
-    ) : (
-      <ArrowDown className="h-3 w-3 text-[#E935C1]" />
-    );
-  };
+  const visible = filtered.slice(0, displayLimit);
+  const hasMore = filtered.length > displayLimit;
 
   const riskOptions: Array<VisibilityRisk | "All"> = ["All", "Critical", "High", "Medium", "Low"];
 
@@ -80,14 +90,14 @@ export function InventoryTable({ items }: InventoryTableProps) {
         <Input
           placeholder="Search listings..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleQueryChange(e.target.value)}
           className="max-w-xs"
         />
         <div className="flex items-center gap-2">
           {riskOptions.map((r) => (
             <button
               key={r}
-              onClick={() => setRiskFilter(r)}
+              onClick={() => handleRiskChange(r)}
               className={`rounded px-3 py-1 text-xs font-bold uppercase tracking-wide transition-colors ${
                 riskFilter === r
                   ? "bg-[#E935C1] text-white"
@@ -116,7 +126,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                 onClick={() => handleSort("days_listed")}
               >
                 <span className="flex items-center justify-end gap-1">
-                  Age <SortIcon col="days_listed" />
+                  Age <SortIcon col="days_listed" sortKey={sortKey} sortDir={sortDir} />
                 </span>
               </th>
               <th
@@ -124,7 +134,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                 onClick={() => handleSort("price")}
               >
                 <span className="flex items-center justify-end gap-1">
-                  Price <SortIcon col="price" />
+                  Price <SortIcon col="price" sortKey={sortKey} sortDir={sortDir} />
                 </span>
               </th>
               <th
@@ -132,7 +142,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                 onClick={() => handleSort("dead_inventory_score")}
               >
                 <span className="flex items-center justify-end gap-1">
-                  Decay <SortIcon col="dead_inventory_score" />
+                  Decay <SortIcon col="dead_inventory_score" sortKey={sortKey} sortDir={sortDir} />
                 </span>
               </th>
               <th className="hidden px-4 py-3 text-center text-xs font-bold uppercase tracking-widest text-zinc-600 sm:table-cell">
@@ -145,7 +155,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
-            {filtered.map((item) => (
+            {visible.map((item) => (
               <tr
                 key={item.id}
                 className="group transition-colors hover:bg-zinc-800/40"
@@ -209,6 +219,17 @@ export function InventoryTable({ items }: InventoryTableProps) {
         {filtered.length === 0 && (
           <div className="py-12 text-center text-sm text-zinc-600">
             No listings match your filters.
+          </div>
+        )}
+
+        {hasMore && (
+          <div className="border-t border-zinc-800 px-4 py-3 text-center">
+            <button
+              onClick={() => setDisplayLimit((l) => l + LOAD_MORE_INCREMENT)}
+              className="text-xs font-semibold text-zinc-500 transition-colors hover:text-zinc-300"
+            >
+              Show more ({filtered.length - displayLimit} remaining)
+            </button>
           </div>
         )}
       </div>

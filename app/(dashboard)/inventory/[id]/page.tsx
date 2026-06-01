@@ -15,9 +15,13 @@ import {
   Calendar,
   DollarSign,
 } from "lucide-react";
-import { MOCK_ITEMS } from "@/lib/mock-data";
-import { scoreItem, RISK_COLORS, RISK_BG } from "@/lib/scoring";
 import { analyzeItem } from "@/lib/recovery-engine";
+import { analyzeMarketplaceSignals } from "@/lib/marketplace-intelligence";
+import { useInventoryItem } from "@/lib/hooks/useInventoryItem";
+import { IntelligencePanel } from "@/components/analyzer/IntelligencePanel";
+import { RecoveryActionPanel } from "@/components/recovery/RecoveryActionPanel";
+import { ItemRecoveryLog } from "@/components/recovery/ItemRecoveryLog";
+import { ScoreTrendBar } from "@/components/inventory/ScoreTrendBar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { formatCurrency, formatCurrencyDecimal } from "@/lib/utils";
@@ -84,24 +88,32 @@ function WarningSignalCard({ signal }: { signal: WarningSignal }) {
 
 export default function ItemDetailPage() {
   const { id } = useParams<{ id: string }>();
-
-  const item = useMemo(() => {
-    const found = MOCK_ITEMS.find((i) => i.id === id);
-    if (!found) return null;
-    return scoreItem(found);
-  }, [id]);
+  const { item, loading } = useInventoryItem(id);
 
   const analysis = useMemo(() => {
     if (!item) return null;
     return analyzeItem(item);
   }, [item]);
 
-  if (!item || !analysis) {
+  const intelligence = useMemo(() => {
+    if (!item) return null;
+    return analyzeMarketplaceSignals(item);
+  }, [item]);
+
+  if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <p className="text-sm text-zinc-600">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!item || !analysis || !intelligence) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="text-center">
           <p className="text-lg font-bold text-zinc-400">Item not found</p>
-          <Link href="/inventory" className="mt-4 text-sm text-[#E935C1]">
+          <Link href="/inventory" className="mt-4 block text-sm text-[#E935C1]">
             ← Back to inventory
           </Link>
         </div>
@@ -301,6 +313,10 @@ export default function ItemDetailPage() {
                 </span>
               </div>
             </div>
+          </div>
+          {/* Marketplace Diagnostics */}
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+            <IntelligencePanel signals={intelligence} />
           </div>
         </div>
 
@@ -531,6 +547,15 @@ export default function ItemDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Score Trend */}
+          <ScoreTrendBar itemId={item.id} />
+
+          {/* Recovery Execution */}
+          <RecoveryActionPanel item={item} />
+
+          {/* Recovery History */}
+          <ItemRecoveryLog itemId={item.id} />
 
           {/* Full Recovery Plan link */}
           <Link

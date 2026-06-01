@@ -11,27 +11,34 @@ import {
   LogOut,
   BarChart3,
   ChevronRight,
+  FolderUp,
+  CreditCard,
+  Bot,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/app/actions/auth";
 import { useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/analyzer", label: "Inventory Analyzer", icon: Upload },
+  { href: "/inventory/import", label: "Import Inventory", icon: FolderUp, highlight: true },
   { href: "/recovery", label: "Recovery Center", icon: Zap },
+  { href: "/outcomes", label: "Outcomes", icon: TrendingUp },
   { href: "/inventory", label: "All Inventory", icon: Package },
+  { href: "/analyzer", label: "Item Analyzer", icon: Upload },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings/plan", label: "Plan & Usage", icon: CreditCard },
+  { href: "/settings/automation", label: "Automation", icon: Bot },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
-
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    await signOutAction();
     router.push("/login");
+    router.refresh();
   }
 
   return (
@@ -61,7 +68,7 @@ export function Sidebar() {
           </span>
         </div>
         <ul className="space-y-0.5">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ href, label, icon: Icon, highlight }) => {
             const active = pathname.startsWith(href);
             return (
               <li key={href}>
@@ -71,13 +78,15 @@ export function Sidebar() {
                     "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                     active
                       ? "bg-[#E935C1]/10 text-[#FF2D95] border border-[#E935C1]/20"
+                      : highlight
+                      ? "text-[#E935C1] border border-[#E935C1]/20 bg-[#E935C1]/5 hover:bg-[#E935C1]/10"
                       : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
                   )}
                 >
                   <Icon
                     className={cn(
                       "h-4 w-4 shrink-0",
-                      active ? "text-[#E935C1]" : "text-zinc-600 group-hover:text-zinc-400"
+                      active || highlight ? "text-[#E935C1]" : "text-zinc-600 group-hover:text-zinc-400"
                     )}
                   />
                   {label}

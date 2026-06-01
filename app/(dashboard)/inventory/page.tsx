@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Package, Search } from "lucide-react";
-import { MOCK_ITEMS } from "@/lib/mock-data";
-import { scoreAll } from "@/lib/scoring";
+import Link from "next/link";
+import { Package, Search, Upload, RefreshCw, AlertTriangle } from "lucide-react";
+import { useInventory } from "@/lib/hooks/useInventory";
 import { InventoryTable } from "@/components/analyzer/InventoryTable";
+import { detectEscalations } from "@/lib/inventory/prioritization";
 import { formatCurrency } from "@/lib/utils";
 import type { ScoredItem, VisibilityRisk, Platform } from "@/lib/types";
 
@@ -38,7 +39,7 @@ const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
 ];
 
 export default function InventoryPage() {
-  const allItems = useMemo(() => scoreAll(MOCK_ITEMS), []);
+  const { items: allItems, loading, isRealData, isAuthenticated, refresh } = useInventory();
 
   const platforms = useMemo<Array<Platform | "All">>(() => {
     const unique = Array.from(new Set(allItems.map((i) => i.platform))).sort();
@@ -71,6 +72,8 @@ export default function InventoryPage() {
 
   const trappedSum = filtered.reduce((sum, i) => sum + i.price, 0);
 
+  const escalations = useMemo(() => detectEscalations(allItems).slice(0, 3), [allItems]);
+
   return (
     <div className="px-4 py-8 sm:px-6 lg:px-8">
       {/* Page Header */}
@@ -81,11 +84,60 @@ export default function InventoryPage() {
             All Inventory
           </span>
         </div>
-        <h1 className="text-2xl font-black text-zinc-100">Inventory</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black text-zinc-100">Inventory</h1>
+          <div className="flex items-center gap-2">
+            {isRealData && (
+              <button onClick={refresh} className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400">
+                <RefreshCw className="h-3 w-3" /> Refresh
+              </button>
+            )}
+            <Link
+              href="/inventory/uploads"
+              className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400"
+            >
+              History
+            </Link>
+            <Link
+              href="/inventory/import"
+              className="flex items-center gap-2 rounded-lg border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-300 transition-colors hover:border-[#E935C1] hover:text-[#E935C1]"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Import
+            </Link>
+          </div>
+        </div>
         <p className="mt-1 text-sm text-zinc-500">
-          Full view of every item — scored, sorted, ready to work.
+          {loading
+            ? "Loading inventory…"
+            : isRealData
+            ? `${allItems.length} items from your inventory`
+            : isAuthenticated
+            ? "No inventory yet — import your first file to get started"
+            : "Demo inventory — sign in to see your real listings"}
         </p>
       </div>
+
+      {/* Escalation Alerts */}
+      {escalations.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {escalations.map(({ item, reason, severity }) => (
+            <Link
+              key={item.id}
+              href={`/inventory/${item.id}`}
+              className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors hover:opacity-90 ${
+                severity === "critical"
+                  ? "border-red-500/30 bg-red-500/5 text-red-300"
+                  : "border-orange-500/30 bg-orange-500/5 text-orange-300"
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate font-semibold">{item.title}</span>
+              <span className="shrink-0 text-xs opacity-70">{reason}</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* Filter Controls */}
       <div className="mb-5 space-y-3">
@@ -173,8 +225,22 @@ export default function InventoryPage() {
         </span>
       </div>
 
+      {/* Skeleton loader while fetching */}
+      {loading && (
+        <div className="space-y-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 animate-pulse">
+              <div className="h-3 w-2/5 rounded bg-zinc-800" />
+              <div className="h-3 w-16 rounded bg-zinc-800" />
+              <div className="h-3 w-12 rounded bg-zinc-800" />
+              <div className="h-3 w-16 ml-auto rounded bg-zinc-800" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Table or Empty State */}
-      {filtered.length === 0 ? (
+      {!loading && filtered.length === 0 ? (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900 py-16 text-center">
           <p className="text-sm font-semibold text-zinc-500">
             No items match your filters.
@@ -190,9 +256,9 @@ export default function InventoryPage() {
             Clear filters
           </button>
         </div>
-      ) : (
+      ) : !loading ? (
         <InventoryTable items={filtered} />
-      )}
+      ) : null}
     </div>
   );
 }

@@ -10,7 +10,6 @@ import {
   Calendar,
   DollarSign,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import type { RecoveryActionDetail } from "@/lib/types";
 

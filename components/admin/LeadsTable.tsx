@@ -2,29 +2,15 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { AuditLeadRow, AuditLeadUpdate } from "@/lib/supabase/database.types";
+import { parseLeadStatusUpdate, VALID_LEAD_STATUSES } from "@/lib/validation/audit-schema";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Search, Mail, ExternalLink } from "lucide-react";
 
-export type AuditLead = {
-  id: string;
-  created_at: string;
-  name: string;
-  email: string;
-  primary_platform: string;
-  inventory_count: string;
-  biggest_problem: string;
-  listing_url: string | null;
-  notes: string | null;
-  status: string;
-  severity_score: number | null;
-  recovery_est_low: number | null;
-  recovery_est_high: number | null;
-  suggested_action: string | null;
-  reviewed_at: string | null;
-};
+export type AuditLead = AuditLeadRow;
 
-const STATUS_OPTIONS = ["new", "reviewed", "contacted"] as const;
+const STATUS_OPTIONS = VALID_LEAD_STATUSES;
 type Status = (typeof STATUS_OPTIONS)[number];
 
 const SELECT_STYLE: Record<Status, string> = {
@@ -102,11 +88,16 @@ export function LeadsTable({ leads: initial }: { leads: AuditLead[] }) {
     [leads]
   );
 
-  async function updateStatus(id: string, status: string) {
+  async function updateStatus(id: string, rawStatus: string) {
+    // Validate status against the canonical enum before any DB write
+    const validated = parseLeadStatusUpdate({ status: rawStatus });
+    if (!validated) return; // silently reject invalid status values
+
     const supabase = createClient();
-    const patch: Record<string, unknown> = { status };
-    if (status !== "new") patch.reviewed_at = new Date().toISOString();
-    const { error } = await supabase.from("audit_leads").update(patch).eq("id", id);
+    const patch: AuditLeadUpdate = { status: validated.status };
+    if (validated.status !== "new") patch.reviewed_at = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from("audit_leads") as any).update(patch).eq("id", id);
     if (!error) {
       startTransition(() =>
         setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))

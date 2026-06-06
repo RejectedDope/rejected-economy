@@ -139,7 +139,49 @@ const COLUMN_ALIASES: Record<string, string> = {
   "item id": "sku",
   "listing id": "sku",
   "asin": "sku",
+
+  // ── Poshmark-specific column headers ───────────────────────────────────────
+  "listed on": "listed_date",   // Poshmark "Listed On" date → days_listed calc
+  "availability": "status",     // Poshmark availability field
 };
+
+// Keywords that appear in real header rows but not in report-title rows.
+const HEADER_KEYWORDS = [
+  "title", "name", "description", "item", "listing",
+  "price", "cost", "amount", "value",
+  "category", "department", "type", "brand", "platform",
+  "date", "listed", "days", "age",
+  "status", "availability", "condition",
+  "views", "likes", "watchers", "photos", "images",
+  "size", "color", "sku", "id",
+];
+
+function looksLikeHeaderRow(cells: string[]): boolean {
+  const nonEmpty = cells
+    .map((c) => c.trim().replace(/^"|"$/g, ""))
+    .filter((c) => c.length > 0);
+  if (nonEmpty.length < 2) return false;
+  const lower = nonEmpty.map((c) => c.toLowerCase());
+  return lower.some(
+    (c) =>
+      COLUMN_ALIASES[c] !== undefined ||
+      HEADER_KEYWORDS.some((kw) => c === kw || c.startsWith(kw + " "))
+  );
+}
+
+// Strips leading metadata rows (e.g. "Poshmark Inventory Report for @username")
+// before PapaParse sees the file. Used as the `beforeFirstChunk` callback and
+// applied to CSV strings before parsing.
+export function stripLeadingMetadata(text: string): string {
+  const lines = text.split("\n");
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const cells = lines[i].replace(/\r$/, "").split(",");
+    if (looksLikeHeaderRow(cells)) {
+      return i === 0 ? text : lines.slice(i).join("\n");
+    }
+  }
+  return text;
+}
 
 function normalizeHeader(raw: string): string {
   const key = raw.trim().toLowerCase();
@@ -222,6 +264,7 @@ export function parseCSVFile(
     header: true,
     skipEmptyLines: true,
     transformHeader: (h: string) => normalizeHeader(h),
+    beforeFirstChunk: stripLeadingMetadata,
     complete(results) {
       const raw = results.data;
 
@@ -302,6 +345,7 @@ export function parseCSVHeaders(file: File): Promise<string[]> {
     Papa.parse<Record<string, string>>(file, {
       header: true,
       preview: 1,
+      beforeFirstChunk: stripLeadingMetadata,
       complete(results) {
         resolve(results.meta.fields ?? []);
       },
@@ -341,6 +385,7 @@ export function parseCSVFileWithMapping(
     header: true,
     skipEmptyLines: true,
     transformHeader: mappedHeader,
+    beforeFirstChunk: stripLeadingMetadata,
     complete(results) {
       const raw = results.data;
       if (raw.length > CSV_MAX_ROWS) truncated = true;
@@ -386,7 +431,7 @@ export function parseCSVString(csvText: string, sourceName: string): CsvParseRes
   const errors: CsvRowError[] = [];
   const warnings: CsvRowError[] = [];
 
-  const results = Papa.parse<Record<string, string>>(csvText, {
+  const results = Papa.parse<Record<string, string>>(stripLeadingMetadata(csvText), {
     header: true,
     skipEmptyLines: true,
     transformHeader: (h: string) => normalizeHeader(h),

@@ -76,6 +76,48 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Run automation rules for all users with enabled rules.
+    // Piggybacked here because Vercel Hobby plan allows only 2 cron jobs;
+    // the dedicated /api/cron/automation route is intentionally excluded from
+    // vercel.json. Skipped gracefully when service client is not configured.
+    let automationUsersRun = 0;
+    let automationTasksCreated = 0;
+    const { isServiceClientConfigured } = await import("@/lib/supabase/service");
+    if (isServiceClientConfigured()) {
+      try {
+        const { createServiceClient } = await import("@/lib/supabase/service");
+        const { runAutomationForUser } = await import("@/lib/automation/runner");
+        const svcClient = createServiceClient();
+
+        const { data: ruleRows } = await svcClient
+          .from("automation_rules")
+          .select("user_id")
+          .eq("enabled", true);
+
+        const automationUserIds = [
+          ...new Set((ruleRows ?? []).map((r: { user_id: string }) => r.user_id)),
+        ] as string[];
+
+        const automationResults = await Promise.allSettled(
+          automationUserIds.map((uid) => runAutomationForUser(uid, svcClient))
+        );
+
+        for (const res of automationResults) {
+          if (res.status === "fulfilled") {
+            automationUsersRun++;
+            automationTasksCreated += res.value.tasksCreated;
+          }
+        }
+
+        logger.info("scoring", "Automation rules evaluated via snapshot cron", {
+          users: automationUsersRun,
+          tasksCreated: automationTasksCreated,
+        });
+      } catch (autoErr) {
+        logger.warn("runtime", "Automation evaluation failed (non-fatal)", { error: String(autoErr) });
+      }
+    }
+
     const durationMs = Date.now() - start;
     logger.info("scoring", "Cron snapshot complete", {
       users: userIds.length,
@@ -90,6 +132,8 @@ export async function GET(req: NextRequest) {
       users: userIds.length,
       written: totalWritten,
       skipped: totalSkipped,
+      automationUsersRun,
+      automationTasksCreated,
       durationMs,
       errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
     });

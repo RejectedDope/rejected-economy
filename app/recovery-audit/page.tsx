@@ -282,8 +282,8 @@ export default function RecoveryAuditPage() {
               <BarChart3 className="h-4 w-4 text-white" />
             </div>
             <span className="text-sm font-black uppercase tracking-widest">
-              <span className="text-zinc-100">Resale</span>
-              <span className="text-[#E935C1]">IQ</span>
+              <span className="text-zinc-100">Rejected</span>
+              <span className="text-[#E935C1]"> Economy</span>
             </span>
           </Link>
           <div className="flex items-center gap-3">
@@ -319,7 +319,7 @@ export default function RecoveryAuditPage() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-lg">
-            ResaleIQ scans listing signals, pricing position, stale inventory
+            We scan listing signals, pricing position, stale inventory
             risk, and marketplace friction to show you what to fix first — and
             how much cash you can recover.
           </p>
@@ -668,8 +668,8 @@ export default function RecoveryAuditPage() {
               <BarChart3 className="h-3 w-3 text-white" />
             </div>
             <span className="text-xs font-black uppercase tracking-widest">
-              <span className="text-zinc-500">Resale</span>
-              <span className="text-[#E935C1]">IQ</span>
+              <span className="text-zinc-500">Rejected</span>
+              <span className="text-[#E935C1]"> Economy</span>
             </span>
           </div>
           <p className="text-xs text-zinc-700">

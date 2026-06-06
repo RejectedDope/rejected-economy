@@ -72,7 +72,7 @@ export default function SettingsPage() {
         </div>
         <h1 className="text-2xl font-black text-zinc-100">Settings</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Configure your ResaleIQ to match your operation.
+          Configure your account to match your operation.
         </p>
       </div>
 

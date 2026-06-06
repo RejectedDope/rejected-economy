@@ -38,7 +38,7 @@ export function AttributionFunnel() {
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         <p className="text-sm font-bold text-zinc-200">Recommendation Funnel</p>
         <p className="mt-2 text-sm text-zinc-600">
-          Import your inventory so ResaleIQ can generate recommendations to track
+          Import your inventory to generate recovery recommendations to track
         </p>
       </div>
     );

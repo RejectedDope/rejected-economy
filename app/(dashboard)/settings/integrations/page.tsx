@@ -370,7 +370,7 @@ function IntegrationsContent() {
           {/* Disclaimer */}
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p className="text-xs text-zinc-600 leading-relaxed">
-              Connecting a marketplace account enables read-only inventory sync — ResaleIQ never modifies
+              Connecting a marketplace account enables read-only inventory sync — we never modify
               your listings automatically. All sync activity is logged and can be reviewed below.
               Disconnect at any time to revoke access.
             </p>

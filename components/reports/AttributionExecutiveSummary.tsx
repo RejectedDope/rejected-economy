@@ -36,7 +36,7 @@ export function AttributionExecutiveSummary() {
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         <p className="text-sm font-bold text-zinc-200">Attribution Summary</p>
         <p className="mt-2 text-sm text-zinc-600">
-          Follow ResaleIQ recommendations and complete recovery actions to see attribution data
+          Follow recovery recommendations and complete actions to see attribution data
         </p>
       </div>
     );
@@ -45,7 +45,7 @@ export function AttributionExecutiveSummary() {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
       <div className="mb-4 flex items-start justify-between gap-4">
-        <p className="text-sm font-bold text-zinc-200">Which ResaleIQ Recommendations Actually Work?</p>
+        <p className="text-sm font-bold text-zinc-200">Which Recovery Actions Actually Work?</p>
         {summary!.platform_attribution_rate > 0 && (
           <span className="shrink-0 rounded border border-[#E935C1]/30 bg-[#E935C1]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#E935C1]">
             {summary!.platform_attribution_rate}% of your sales followed a recommendation

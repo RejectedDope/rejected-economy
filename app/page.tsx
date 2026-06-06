@@ -47,7 +47,7 @@ const HOW_IT_WORKS = [
   {
     step: "01",
     title: "Submit the Audit Intake",
-    body: "Tell ResaleIQ where you sell, how much inventory is sitting, and what problem is costing you the most cash right now.",
+    body: "Tell us where you sell, how much inventory is sitting, and what problem is costing you the most cash right now.",
   },
   {
     step: "02",
@@ -163,7 +163,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-400">
-            Dead stock doesn&apos;t pay. ResaleIQ scores every listing in your
+            Dead stock doesn&apos;t pay. The Rejected Economy scores every listing in your
             inventory, surfaces the death pile, and hands you a tactical
             recovery plan to unlock trapped cash — fast.
           </p>
@@ -208,7 +208,7 @@ export default function LandingPage() {
               You Already Know Something Is Wrong
             </h2>
             <p className="mt-3 text-zinc-500">
-              The signal is there. ResaleIQ translates it into a specific action.
+              The signal is there. We translate it into a specific action.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -439,7 +439,7 @@ export default function LandingPage() {
             Dead Stock Doesn&apos;t Pay.
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-zinc-500">
-            Every day your inventory sits is money locked up. ResaleIQ shows
+            Every day your inventory sits is money locked up. We show
             you exactly where it is and exactly what to do about it.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">

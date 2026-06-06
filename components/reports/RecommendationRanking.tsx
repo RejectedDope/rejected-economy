@@ -38,7 +38,7 @@ export function RecommendationRanking() {
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         <p className="text-sm font-bold text-zinc-200">Recommendation Effectiveness Ranking</p>
         <p className="mt-2 text-sm text-zinc-600">
-          Follow ResaleIQ recommendations and log outcomes to see your ranking
+          Follow recovery recommendations and log outcomes to see your ranking
         </p>
       </div>
     );

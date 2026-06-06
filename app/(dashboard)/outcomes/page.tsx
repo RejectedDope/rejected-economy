@@ -34,7 +34,7 @@ export default async function OutcomesPage() {
         </div>
         <h1 className="text-2xl font-black text-zinc-100">Seller Outcomes</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          See exactly what ResaleIQ recommendations have done for your inventory.
+          See exactly what your recovery actions have produced for your inventory.
           Proof over assumptions.
         </p>
       </div>
@@ -84,7 +84,7 @@ export default async function OutcomesPage() {
         <div className="space-y-4">
           <SectionHeading
             label="Recommendation Attribution"
-            sub="Which ResaleIQ recommendations actually drive sales?"
+            sub="Which recovery actions actually drive sales?"
           />
           <AttributionExecutiveSummary />
           <AttributionFunnel />

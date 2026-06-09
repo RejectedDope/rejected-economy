@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { Label } from "@/components/ui/label";
 import { scoreAuditLead } from "@/lib/audit-scoring";
-
+import { supabaseConfigured } from "@/lib/env";
 import { parseAuditSubmission } from "@/lib/validation/audit-schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -190,6 +190,12 @@ export default function RecoveryAuditPage() {
     setSubmitting(true);
     setSubmitError(null);
 
+    if (!supabaseConfigured) {
+      setSubmitting(false);
+      setSubmitError("Form submissions are temporarily unavailable. Please try again in a few minutes.");
+      return;
+    }
+
     try {
       // Sanitize through Zod schema before any DB write.
       // Handles trimming, email lowercasing, URL validation, and enum guards.
@@ -253,16 +259,21 @@ export default function RecoveryAuditPage() {
       setSubmitted(true);
     } catch (err) {
       // Supabase PostgrestError is a plain object {message, details, hint, code}, not instanceof Error
-      const message =
+      const rawMessage =
         err instanceof Error
           ? err.message
           : typeof err === "object" && err !== null && "message" in err
           ? String((err as Record<string, unknown>).message)
           : typeof err === "string"
           ? err
-          : "Submission failed — check your connection and try again";
+          : "";
+      // Never surface library internals (e.g. @supabase/ssr config errors) to users
+      const isLibraryError = rawMessage.includes("supabase") || rawMessage.includes("URL and API key");
+      const message = isLibraryError || !rawMessage
+        ? "Submission failed — check your connection and try again."
+        : rawMessage;
       const detail =
-        typeof err === "object" && err !== null && "code" in err
+        !isLibraryError && typeof err === "object" && err !== null && "code" in err
           ? ` (code: ${(err as Record<string, unknown>).code})`
           : "";
       setSubmitError(`Couldn't save your audit request. ${message}${detail}`);

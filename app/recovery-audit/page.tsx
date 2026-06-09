@@ -123,8 +123,6 @@ const AUDIT_SIGNALS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// supabaseConfigured imported from @/lib/env
-
 function selectCls(hasError: boolean) {
   return [
     "flex h-10 w-full rounded-md border bg-zinc-900 px-3 py-2 text-sm text-zinc-100",
@@ -194,9 +192,7 @@ export default function RecoveryAuditPage() {
 
     if (!supabaseConfigured) {
       setSubmitting(false);
-      setSubmitError(
-        "⚙️ Dev mode: Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable lead capture. Run supabase/migrations/002_audit_leads.sql first."
-      );
+      setSubmitError("Form submissions are temporarily unavailable. Please try again in a few minutes.");
       return;
     }
 
@@ -263,16 +259,21 @@ export default function RecoveryAuditPage() {
       setSubmitted(true);
     } catch (err) {
       // Supabase PostgrestError is a plain object {message, details, hint, code}, not instanceof Error
-      const message =
+      const rawMessage =
         err instanceof Error
           ? err.message
           : typeof err === "object" && err !== null && "message" in err
           ? String((err as Record<string, unknown>).message)
           : typeof err === "string"
           ? err
-          : "Submission failed — check your connection and try again";
+          : "";
+      // Never surface library internals (e.g. @supabase/ssr config errors) to users
+      const isLibraryError = rawMessage.includes("supabase") || rawMessage.includes("URL and API key");
+      const message = isLibraryError || !rawMessage
+        ? "Submission failed — check your connection and try again."
+        : rawMessage;
       const detail =
-        typeof err === "object" && err !== null && "code" in err
+        !isLibraryError && typeof err === "object" && err !== null && "code" in err
           ? ` (code: ${(err as Record<string, unknown>).code})`
           : "";
       setSubmitError(`Couldn't save your audit request. ${message}${detail}`);

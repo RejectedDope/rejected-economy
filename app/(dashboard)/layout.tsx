@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { Sidebar } from "@/components/nav/Sidebar";
 import { MobileNav } from "@/components/nav/MobileNav";
+import { ContextualCoachMarketActions } from "@/components/affiliate/ContextualCoachMarketActions";
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
       {/* Main content */}
       <main className="pb-20 lg:ml-64 lg:pb-0">
         {children}
+        <ContextualCoachMarketActions />
       </main>
 
       {/* Mobile bottom nav */}

@@ -1,0 +1,21 @@
+{
+  "name": "Rejected Vault Scan",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "workspaceFolder": "/workspaces/rejected-economy/apps/rejected-vault-scan",
+  "postCreateCommand": "npm install && npx expo-doctor",
+  "forwardPorts": [8081],
+  "portsAttributes": {
+    "8081": {
+      "label": "Expo Metro",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "expo.vscode-expo-tools",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

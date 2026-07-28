@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Rejected Vault Scan",
+    "slug": "rejected-vault-scan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "rejectedvaultscan",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Rejected Vault Scan needs access to the albums you authorize so it can find possible resale inventory without requiring individual uploads."
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Rejected Vault Scan to review the photos and albums you choose for possible resale inventory.",
+          "savePhotosPermission": "Allow Rejected Vault Scan to save exported reports to your photo library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

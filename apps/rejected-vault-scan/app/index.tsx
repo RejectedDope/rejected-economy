@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { AlbumCard } from '@/src/components/AlbumCard';
-import { getPermissionState, loadAlbums, openAppSettings, requestPhotoPermission, type PermissionState } from '@/src/services/mediaLibrary';
+import {
+  getPermissionState,
+  loadAlbums,
+  manageSelectedPhotos,
+  openAppSettings,
+  requestPhotoPermission,
+  type PermissionState,
+} from '@/src/services/mediaLibrary';
 import type { AlbumSummary } from '@/src/types/media';
 
 export default function HomeScreen() {
@@ -16,11 +23,7 @@ export default function HomeScreen() {
     try {
       const current = await getPermissionState();
       setPermission(current);
-      if (current.granted) {
-        setAlbums(await loadAlbums());
-      } else {
-        setAlbums([]);
-      }
+      setAlbums(current.granted ? await loadAlbums() : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to read the photo library.');
     } finally {
@@ -28,7 +31,13 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refresh();
+    });
+    return () => subscription.remove();
+  }, [refresh]);
 
   const connect = async () => {
     setLoading(true);
@@ -51,8 +60,24 @@ export default function HomeScreen() {
     }
   };
 
+  const changeSelection = async () => {
+    try {
+      await manageSelectedPhotos();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to change selected photos.');
+    }
+  };
+
   if (loading) {
-    return <SafeAreaView style={styles.safe}><View style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loading}>Checking your photo access…</Text></View></SafeAreaView>;
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" />
+          <Text style={styles.loading}>Checking your photo access…</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   if (!permission?.granted) {
@@ -64,10 +89,12 @@ export default function HomeScreen() {
           <Text style={styles.body}>Connect the albums you authorize. Phase 1 reads your real iPhone albums directly—no individual uploads and no listing automation.</Text>
           <View style={styles.notice}>
             <Text style={styles.noticeTitle}>Private first step</Text>
-            <Text style={styles.noticeBody}>This test only checks permission, album names, photo counts, and thumbnails. It does not send your photos anywhere.</Text>
+            <Text style={styles.noticeBody}>This test only checks permission, album names, visible photo counts, and thumbnails. It does not send your photos anywhere.</Text>
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Pressable style={styles.primary} onPress={() => void connect()}><Text style={styles.primaryText}>Connect My Photos</Text></Pressable>
+          <Pressable style={styles.primary} onPress={() => void connect()}>
+            <Text style={styles.primaryText}>Connect My Photos</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -80,12 +107,33 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.eyebrow}>PHASE 1 DEVICE TEST</Text>
         <Text style={styles.headlineSmall}>Your authorized albums</Text>
-        <Text style={styles.body}>{limited ? 'Selected Photos Only is active. Counts and albums may reflect only what iOS currently exposes.' : 'Full Photo Access is active.'}</Text>
-        <View style={[styles.badge, limited && styles.badgeWarn]}><Text style={styles.badgeText}>{limited ? 'LIMITED ACCESS' : 'FULL ACCESS'}</Text></View>
-        <View style={styles.actions}>
-          <Pressable style={styles.secondary} onPress={() => void refresh()}><Text style={styles.secondaryText}>Refresh</Text></Pressable>
-          <Pressable style={styles.secondary} onPress={() => void openAppSettings()}><Text style={styles.secondaryText}>Photo Settings</Text></Pressable>
+        <Text style={styles.body}>
+          {limited
+            ? 'Selected Photos Only is active. The list reflects only assets iOS currently allows this app to see.'
+            : 'Full Photo Access is active.'}
+        </Text>
+        <View style={[styles.badge, limited && styles.badgeWarn]}>
+          <Text style={styles.badgeText}>{limited ? 'LIMITED ACCESS' : 'FULL ACCESS'}</Text>
         </View>
+        <View style={styles.actions}>
+          <Pressable style={styles.secondary} onPress={() => void refresh()}>
+            <Text style={styles.secondaryText}>Refresh</Text>
+          </Pressable>
+          {limited ? (
+            <Pressable style={styles.secondary} onPress={() => void changeSelection()}>
+              <Text style={styles.secondaryText}>Change Selected Photos</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.secondary} onPress={() => void openAppSettings()}>
+              <Text style={styles.secondaryText}>Photo Settings</Text>
+            </Pressable>
+          )}
+        </View>
+        {limited ? (
+          <Pressable style={styles.textAction} onPress={() => void openAppSettings()}>
+            <Text style={styles.textActionLabel}>Switch to full access in Settings</Text>
+          </Pressable>
+        ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
       <FlatList
@@ -94,7 +142,12 @@ export default function HomeScreen() {
         renderItem={({ item }) => <AlbumCard album={item} />}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No albums returned</Text><Text style={styles.body}>Open Photo Settings, adjust access, then return and tap Refresh.</Text></View>}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No visible albums returned</Text>
+            <Text style={styles.body}>Adjust photo access, return to the app, and tap Refresh.</Text>
+          </View>
+        }
       />
     </SafeAreaView>
   );
@@ -119,9 +172,11 @@ const styles = StyleSheet.create({
   badge: { alignSelf: 'flex-start', marginTop: 12, backgroundColor: '#D7E6D3', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   badgeWarn: { backgroundColor: '#F2D9AE' },
   badgeText: { fontSize: 12, fontWeight: '800', color: '#312D29' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   secondary: { borderWidth: 1, borderColor: '#C7BBAE', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
   secondaryText: { fontWeight: '700', color: '#312D29' },
+  textAction: { marginTop: 12 },
+  textActionLabel: { fontWeight: '700', color: '#8A4D2A', textDecorationLine: 'underline' },
   list: { paddingHorizontal: 20, paddingBottom: 24 },
   empty: { marginTop: 30, padding: 20, borderRadius: 16, backgroundColor: '#F4EFE7' },
   emptyTitle: { fontSize: 18, fontWeight: '800', color: '#161514' },

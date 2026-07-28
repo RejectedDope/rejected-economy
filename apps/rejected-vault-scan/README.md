@@ -2,6 +2,8 @@
 
 A real Expo/React Native Phase 1 prototype for iPhone photo-library permission and album reading.
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/RejectedDope/rejected-economy?quickstart=1&ref=main&devcontainer_path=.devcontainer%2Fdevcontainer.json)
+
 ## What works
 
 - Requests iOS photo-library permission
@@ -13,21 +15,20 @@ A real Expo/React Native Phase 1 prototype for iPhone photo-library permission a
 
 ## Phone-only testing with GitHub Codespaces
 
-1. Open this repository in GitHub.
-2. Switch to the `feature/rejected-vault-scan-phase1` branch.
-3. Open **Code → Codespaces → Create codespace on feature/rejected-vault-scan-phase1**.
-4. In the terminal run:
+1. Tap **Open in GitHub Codespaces** above.
+2. Confirm the repository is `RejectedDope/rejected-economy` and the branch is `main`.
+3. Tap **Create codespace**.
+4. The workspace opens directly inside `apps/rejected-vault-scan` and runs `npm install` plus `expo-doctor` automatically.
+5. In the terminal run:
 
 ```bash
-cd apps/rejected-vault-scan
-npm install
 npx expo start --tunnel
 ```
 
-5. Open the generated Expo link in Expo Go.
-6. Test Full Photo Access.
-7. Go to **iPhone Settings → Apps → Expo Go → Photos** and switch to Selected Photos.
-8. Reopen the app and tap Refresh.
+6. Open the generated Expo link in Expo Go.
+7. Test Full Photo Access.
+8. Go to **iPhone Settings → Apps → Expo Go → Photos** and switch to Selected Photos.
+9. Reopen the app and tap Refresh.
 
 ## Expected Phase 1 result
 

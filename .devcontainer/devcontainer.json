@@ -3,6 +3,7 @@
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
   "workspaceFolder": "/workspaces/rejected-economy/apps/rejected-vault-scan",
   "postCreateCommand": "npm install && npx expo-doctor",
+  "postStartCommand": "bash -lc 'pkill -f \"expo start\" || true; nohup npm start > /tmp/rejected-vault-expo.log 2>&1 & echo $! > /tmp/rejected-vault-expo.pid'",
   "forwardPorts": [8081],
   "portsAttributes": {
     "8081": {

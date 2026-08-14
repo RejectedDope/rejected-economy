@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { loadAlbumPhotos } from '@/src/services/mediaLibrary';
 import {
+  createInventoryDraft,
   getSavedConnectionKey,
   saveConnectionKey,
   uploadPhotoBatch,
@@ -31,6 +32,12 @@ export default function IntakeScreen() {
   const [assets, setAssets] = useState<PhotoAsset[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sku, setSku] = useState('');
+  const [newItem, setNewItem] = useState(true);
+  const [title, setTitle] = useState('');
+  const [purchaseCost, setPurchaseCost] = useState('');
+  const [sourceStore, setSourceStore] = useState('Goodwill');
+  const [location, setLocation] = useState('');
+  const [createdSku, setCreatedSku] = useState('');
   const [connectionKey, setConnectionKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -69,20 +76,49 @@ export default function IntakeScreen() {
   };
 
   const upload = async () => {
-    if (!sku.trim()) return Alert.alert('SKU required', 'Enter the existing SharePoint Inventory SKU.');
     if (!selectedAssets.length) return Alert.alert('Photos required', 'Select at least one photo.');
+    if (newItem && title.trim().length < 3) {
+      return Alert.alert('Item title required', 'Enter a short factual title such as “Black zip wallet.”');
+    }
+    if (newItem && !location.trim()) {
+      return Alert.alert('Storage location required', 'Enter the bin or shelf where you put this physical item.');
+    }
+    if (!newItem && !sku.trim()) {
+      return Alert.alert('SKU required', 'Enter the existing SharePoint Inventory SKU.');
+    }
     try {
       setUploading(true);
       await saveConnectionKey(connectionKey);
+      let targetSku = sku.trim();
+      if (newItem) {
+        if (createdSku) {
+          targetSku = createdSku;
+        } else {
+          const parsedCost = purchaseCost.trim() ? Number(purchaseCost) : undefined;
+          if (parsedCost !== undefined && (!Number.isFinite(parsedCost) || parsedCost < 0)) {
+            throw new Error('Purchase cost must be a valid amount.');
+          }
+          setProgress({ current: 0, total: selectedAssets.length, label: 'Creating SharePoint draft' });
+          const draft = await createInventoryDraft({
+            title: title.trim(),
+            purchaseCost: parsedCost,
+            sourceStore: sourceStore.trim(),
+            location: location.trim(),
+            connectionKey: connectionKey.trim(),
+          });
+          targetSku = draft.sku;
+          setCreatedSku(draft.sku);
+        }
+      }
       const result = await uploadPhotoBatch({
-        sku,
+        sku: targetSku,
         assets: selectedAssets,
         connectionKey: connectionKey.trim(),
         onProgress: setProgress,
       });
       Alert.alert(
         result.failures ? 'Batch needs review' : 'Listing photos ready',
-        `${result.batchId}\n${result.status}${result.failures ? ` — ${result.failures} failed` : ''}`,
+        `${targetSku}\n${result.batchId}\n${result.status}${result.failures ? ` — ${result.failures} failed` : ''}`,
         [{ text: 'Done', onPress: () => router.back() }]
       );
     } catch (error) {
@@ -100,15 +136,35 @@ export default function IntakeScreen() {
           <Pressable onPress={() => router.back()}><Text style={styles.back}>‹ Albums</Text></Pressable>
           <Text style={styles.eyebrow}>PHOTO INTAKE</Text>
           <Text style={styles.title}>{params.title || 'Selected album'}</Text>
-          <Text style={styles.help}>One existing SKU applies to this entire batch. Originals are preserved before processing.</Text>
-          <TextInput
-            value={sku}
-            onChangeText={setSku}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            placeholder="Existing SKU, e.g. RT-0241"
-            style={styles.input}
-          />
+          <Text style={styles.help}>Select photos for one physical item. Originals are preserved before processing.</Text>
+          <View style={styles.modeRow}>
+            <Pressable style={[styles.mode, newItem && styles.modeActive]} onPress={() => setNewItem(true)}>
+              <Text style={[styles.modeText, newItem && styles.modeTextActive]}>New sourced item</Text>
+            </Pressable>
+            <Pressable style={[styles.mode, !newItem && styles.modeActive]} onPress={() => setNewItem(false)}>
+              <Text style={[styles.modeText, !newItem && styles.modeTextActive]}>Existing SKU</Text>
+            </Pressable>
+          </View>
+          {newItem ? (
+            <>
+              <TextInput value={title} onChangeText={setTitle} placeholder="Factual title, e.g. Black zip wallet" style={styles.input} />
+              <View style={styles.inlineInputs}>
+                <TextInput value={purchaseCost} onChangeText={setPurchaseCost} keyboardType="decimal-pad" placeholder="Cost" style={[styles.input, styles.inlineInput]} />
+                <TextInput value={sourceStore} onChangeText={setSourceStore} placeholder="Source store" style={[styles.input, styles.inlineInput]} />
+              </View>
+              <TextInput value={location} onChangeText={setLocation} placeholder="Storage bin or shelf" style={styles.input} />
+              {createdSku ? <Text style={styles.assigned}>Assigned SKU: {createdSku}</Text> : null}
+            </>
+          ) : (
+            <TextInput
+              value={sku}
+              onChangeText={setSku}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              placeholder="Existing SKU, e.g. RT-0241"
+              style={styles.input}
+            />
+          )}
           <TextInput
             value={connectionKey}
             onChangeText={setConnectionKey}
@@ -165,6 +221,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, lineHeight: 32, fontWeight: '900', color: '#161514', marginTop: 4 },
   help: { color: '#5B554F', fontSize: 14, lineHeight: 19, marginTop: 6 },
   input: { marginTop: 10, borderWidth: 1, borderColor: '#C7BBAE', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#FFF', color: '#161514' },
+  modeRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  mode: { flex: 1, borderWidth: 1, borderColor: '#C7BBAE', borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  modeActive: { backgroundColor: '#8A4D2A', borderColor: '#8A4D2A' },
+  modeText: { color: '#312D29', fontWeight: '700' },
+  modeTextActive: { color: '#FFF' },
+  inlineInputs: { flexDirection: 'row', gap: 8 },
+  inlineInput: { flex: 1 },
+  assigned: { marginTop: 8, color: '#2F6A37', fontWeight: '800' },
   selectionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, marginBottom: 8 },
   selection: { fontWeight: '700', color: '#312D29' },
   clear: { fontWeight: '700', color: '#8A4D2A', textDecorationLine: 'underline' },

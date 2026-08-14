@@ -5,13 +5,15 @@ This Phase 2 build extends `apps/rejected-vault-scan`; it does not create a comp
 ## Flow
 
 1. The iPhone app reads only the albums/photos the user authorizes.
-2. The user enters one existing SharePoint Inventory SKU and selects up to 25 photos.
-3. The server validates the exact SKU before accepting files.
+2. For a newly sourced item, the user enters a short factual title, cost when known, and physical storage location. The server creates the canonical SharePoint draft and assigns an SKU automatically.
+3. For an existing item, the server validates the exact SKU before accepting files.
 4. Each original is uploaded unchanged to the Product Photos library.
 5. A resized JPEG preview is sent to the self-hosted background worker.
 6. The server generates a 1600×1600 sRGB listing JPEG on white plus a transparent PNG.
 7. Processing failures preserve the original and set Inventory to `Needs Review`.
 8. Completion writes photo count, folder paths, primary image, batch ID, and status back to the same Inventory record.
+
+Each batch must represent one physical item. Group haul photos can be retained as sourcing evidence but must not be treated as the listing photo for every object in the frame.
 
 ## SharePoint folders
 

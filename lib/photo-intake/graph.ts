@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { PhotoIntakeConfig } from "./config";
 
 const GRAPH_ROOT = "https://graph.microsoft.com/v1.0";
@@ -10,6 +11,12 @@ type InventoryMatch = {
 type GraphListResponse<T> = {
   value?: T[];
   "@odata.nextLink"?: string;
+};
+
+type GraphColumn = {
+  name: string;
+  displayName: string;
+  hidden?: boolean;
 };
 
 async function getGraphToken(config: PhotoIntakeConfig): Promise<string> {
@@ -96,6 +103,62 @@ export async function findInventoryBySku(
     pages += 1;
   }
   return null;
+}
+
+function generatedSku(now = new Date()): string {
+  const date = now.toISOString().slice(2, 10).replaceAll("-", "");
+  return `RT-${date}-${randomUUID().slice(0, 4).toUpperCase()}`;
+}
+
+export async function createInventoryDraft(
+  config: PhotoIntakeConfig,
+  input: {
+    title: string;
+    purchaseCost?: number;
+    dateAcquired: string;
+    sourceStore?: string;
+    location?: string;
+  }
+): Promise<InventoryMatch & { sku: string }> {
+  const columns = await graphJson<GraphListResponse<GraphColumn>>(
+    config,
+    `/sites/${config.siteId}/lists/${config.inventoryListId}/columns?$select=name,displayName,hidden`
+  );
+  const visible = columns.value?.filter((column) => !column.hidden) ?? [];
+  const fieldName = (displayName: string) =>
+    visible.find((column) => column.displayName.toLowerCase() === displayName.toLowerCase())?.name;
+  const setIfPresent = (fields: Record<string, unknown>, displayName: string, value: unknown) => {
+    const name = fieldName(displayName);
+    if (name && value !== undefined && value !== "") fields[name] = value;
+  };
+
+  const sku = generatedSku();
+  const fields: Record<string, unknown> = {
+    [fieldName("Title") ?? "Title"]: input.title,
+    [fieldName("SKU") ?? "SKU"]: sku,
+    [fieldName("Status") ?? "Status"]: "Needs Research",
+  };
+  setIfPresent(fields, "Purchase Cost", input.purchaseCost);
+  setIfPresent(fields, "Date Acquired", input.dateAcquired);
+  setIfPresent(fields, "Source", input.sourceStore);
+  setIfPresent(fields, "Location", input.location);
+  const intakeNotes = [
+    input.location ? `Stored in ${input.location}.` : "",
+    input.sourceStore ? `Sourced from ${input.sourceStore}.` : "",
+    "Verify identity, photograph labels and research sold comps.",
+  ].filter(Boolean).join(" ");
+  setIfPresent(fields, "Next Action", intakeNotes);
+
+  const created = await graphJson<InventoryMatch>(
+    config,
+    `/sites/${config.siteId}/lists/${config.inventoryListId}/items`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fields }),
+    }
+  );
+  return { ...created, sku };
 }
 
 async function getDriveItemByPath(config: PhotoIntakeConfig, path: string) {

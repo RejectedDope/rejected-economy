@@ -1,6 +1,6 @@
 # Rejected Vault Scan — Photo Intake Phase 2
 
-An Expo/React Native iPhone intake app that reads authorized albums, associates a selected batch to one existing SharePoint SKU, preserves originals, and starts listing-image processing.
+An Expo/React Native iPhone intake app that reads authorized albums, creates a new SharePoint inventory draft or attaches to an existing SKU, preserves originals, and starts listing-image processing.
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/RejectedDope/rejected-economy?quickstart=1&ref=main&devcontainer_path=.devcontainer%2Fdevcontainer.json)
 
@@ -12,7 +12,9 @@ An Expo/React Native iPhone intake app that reads authorized albums, associates 
 - Displays album names, counts, and a thumbnail
 - Provides Refresh and Photo Settings actions
 - Opens an album and selects up to 25 photos
-- Requires one existing SharePoint SKU for the entire batch
+- Treats each selected batch as one physical item
+- Creates a new `Needs Research` SharePoint record and assigns an SKU, or accepts an existing SKU
+- Captures purchase cost, source store, and physical storage location for new sourcing
 - Stores the private connection key in iOS SecureStore
 - Uploads originals and JPEG processing previews separately
 - Completes the batch only after the server returns per-photo results
@@ -51,5 +53,3 @@ The app should show the albums and counts iOS exposes under the chosen permissio
 ## Server dependency
 
 The Next.js API and self-hosted worker live in the repository root. See `docs/photo-intake.md`.
-
-These belong to Phase 2 and later, after on-device album behavior is confirmed.

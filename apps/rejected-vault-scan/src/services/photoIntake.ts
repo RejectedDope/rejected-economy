@@ -18,6 +18,13 @@ export type UploadProgress = {
   label: string;
 };
 
+export type InventoryDraft = {
+  inventoryItemId: string;
+  sku: string;
+  title: string;
+  status: string;
+};
+
 function apiUrl(path: string): string {
   const base = process.env.EXPO_PUBLIC_PHOTO_INTAKE_API_URL?.replace(/\/$/, '');
   if (!base) throw new Error('Photo Intake server URL is not configured in this build.');
@@ -40,6 +47,31 @@ export async function saveConnectionKey(value: string): Promise<void> {
   await SecureStore.setItemAsync(KEY_NAME, key, {
     keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
   });
+}
+
+export async function createInventoryDraft(args: {
+  title: string;
+  purchaseCost?: number;
+  sourceStore?: string;
+  location: string;
+  connectionKey: string;
+}): Promise<InventoryDraft> {
+  return responseJson<InventoryDraft>(
+    await fetch(apiUrl('/api/photo-intake/inventory'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-photo-intake-key': args.connectionKey,
+      },
+      body: JSON.stringify({
+        title: args.title,
+        purchaseCost: args.purchaseCost,
+        sourceStore: args.sourceStore,
+        location: args.location,
+        dateAcquired: new Date().toISOString().slice(0, 10),
+      }),
+    })
+  );
 }
 
 function defaultRole(index: number): string {

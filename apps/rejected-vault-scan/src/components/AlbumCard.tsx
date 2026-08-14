@@ -1,13 +1,19 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AlbumSummary } from '@/src/types/media';
 
-export function AlbumCard({ album }: { album: AlbumSummary }) {
+export function AlbumCard({ album, onPress }: { album: AlbumSummary; onPress?: () => void }) {
   return (
-    <View style={styles.card}>
+    <Pressable style={styles.card} onPress={onPress} disabled={!onPress}>
       <View style={styles.thumbWrap}>
         {album.thumbnailUri ? (
-          <Image source={album.thumbnailUri} style={styles.thumb} contentFit="cover" transition={150} />
+          <Image
+            source={album.thumbnailUri}
+            style={styles.thumb}
+            contentFit="cover"
+            transition={150}
+            alt={`${album.title} album preview`}
+          />
         ) : (
           <View style={styles.placeholder}><Text style={styles.placeholderText}>No preview</Text></View>
         )}
@@ -16,7 +22,8 @@ export function AlbumCard({ album }: { album: AlbumSummary }) {
         <Text numberOfLines={1} style={styles.title}>{album.title}</Text>
         <Text style={styles.count}>{album.assetCount.toLocaleString()} photos</Text>
       </View>
-    </View>
+      {onPress ? <Text style={styles.arrow}>›</Text> : null}
+    </Pressable>
   );
 }
 
@@ -29,4 +36,5 @@ const styles = StyleSheet.create({
   copy: { flex: 1 },
   title: { fontSize: 17, fontWeight: '700', color: '#161514' },
   count: { fontSize: 14, marginTop: 4, color: '#655F57' },
+  arrow: { fontSize: 32, lineHeight: 34, color: '#8A4D2A' },
 });

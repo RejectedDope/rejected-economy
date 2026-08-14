@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "app/api/photo-intake/**/*.ts",
+    "lib/photo-intake/**/*.ts",
+    "tests/photo-intake/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

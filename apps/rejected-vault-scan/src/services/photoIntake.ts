@@ -86,7 +86,7 @@ export async function uploadPhotoBatch(args: {
   assets: PhotoAsset[];
   connectionKey: string;
   onProgress: (progress: UploadProgress) => void;
-}): Promise<{ batchId: string; status: string; failures: number }> {
+}): Promise<{ batchId: string; status: string; researchStatus: string; failures: number }> {
   const sku = args.sku.trim().toUpperCase();
   const headers = {
     'content-type': 'application/json',
@@ -136,7 +136,7 @@ export async function uploadPhotoBatch(args: {
     }
   }
 
-  const result = await responseJson<{ status: string }>(
+  const result = await responseJson<{ status: string; researchStatus?: string; researchRunId?: string }>(
     await fetch(apiUrl(`/api/photo-intake/batches/${started.batchId}/complete`), {
       method: 'POST',
       headers,
@@ -149,5 +149,21 @@ export async function uploadPhotoBatch(args: {
     })
   );
 
-  return { batchId: started.batchId, status: result.status, failures: failed };
+  if (result.researchRunId) {
+    // Give the background research run a short opportunity to finish while the
+    // user is still in the intake flow. SharePoint retains the run ID when it
+    // needs more time, so the request is durable rather than silently lost.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      const research = await responseJson<{ status: string }>(
+        await fetch(apiUrl('/api/photo-intake/research/status'), {
+          method: 'POST', headers,
+          body: JSON.stringify({ batchToken: started.batchToken, responseId: result.researchRunId }),
+        })
+      );
+      if (research.status === 'completed' || research.status === 'failed') break;
+    }
+  }
+
+  return { batchId: started.batchId, status: result.status, researchStatus: result.researchStatus ?? 'Pending', failures: failed };
 }

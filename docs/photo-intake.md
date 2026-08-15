@@ -10,8 +10,11 @@ This Phase 2 build extends `apps/rejected-vault-scan`; it does not create a comp
 4. Each original is uploaded unchanged to the Product Photos library.
 5. A resized JPEG preview is sent to the self-hosted background worker.
 6. The server generates a 1600×1600 sRGB listing JPEG on white plus a transparent PNG.
-7. Processing failures preserve the original and set Inventory to `Needs Review`.
-8. Completion writes photo count, folder paths, primary image, batch ID, and status back to the same Inventory record.
+7. Processing failures preserve the original and block research until the photos are reviewed.
+8. Successful photo processing sets the photo state to `Processed`; it never sets the inventory item to `Ready to List`.
+9. ResaleIQ analyzes the processed copies, researches sold evidence, proposes pricing and marketplace fit, records profitability assumptions, and identifies missing proof.
+10. A deterministic evidence gate writes the evaluation artifact and results to the same Inventory record. Only an identified item with non-weak sold evidence, pricing, marketplace choice, no blocking proof/authenticity requirement, and at least one listing draft can advance to `Ready to List`.
+11. Publishing remains a separate human-approved action.
 
 Each batch must represent one physical item. Group haul photos can be retained as sourcing evidence but must not be treated as the listing photo for every object in the frame.
 
@@ -23,7 +26,9 @@ Each batch must represent one physical item. Group haul photos can be retained a
 - `Photo Intake & Processing/04 Processing Errors/{SKU}/{batchId}`
 - `Photo Intake & Processing/05 Manifests and Logs/{SKU}/{batchId}.json`
 
-## Required Inventory internal field names
+## Required Inventory fields
+
+The photo fields below retain their current internal names:
 
 - `PhotoStatus`
 - `OriginalPhotoFolder`
@@ -33,6 +38,31 @@ Each batch must represent one physical item. Group haul photos can be retained a
 - `PhotoBatchID`
 - `LastPhotoProcessed`
 - `PhotoError`
+
+Add these ResaleIQ columns using the display names shown. The API resolves their
+actual SharePoint internal names before writing:
+
+- `Research Status` (single line text or choice)
+- `Research Run ID` (single line text)
+- `Research Summary` (multiple lines text)
+- `Identification Confidence` (choice: Low, Medium, High)
+- `Missing Proof` (multiple lines text)
+- `Sold Comp Count` (number)
+- `Market Low`, `Market Typical`, `Market High` (currency)
+- `Recommended List Price`, `Likely Sale Price` (currency)
+- `Best Marketplace` (single line text or choice)
+- `Estimated Gross Profit` (currency)
+- `Research Evidence URL` (hyperlink or single line text)
+
+The canonical `Status` remains `Needs Research` throughout upload and image
+processing. ResaleIQ may write `Ready to List` only after the evidence gate passes.
+If any required column is absent, that result is not silently stored elsewhere;
+provision and verify the columns before the first live run.
+
+The complete evaluation is preserved as
+`05 Manifests and Logs/{SKU}/{batchId}-resaleiq-evaluation.json`, including the
+identification limits, evidence URLs, market range, strategy, missing proof,
+profitability limitations, drafts, decision, and next action.
 
 Create these fields before the first live upload. The API fails closed if SharePoint rejects a write; it does not silently create a second record.
 
@@ -49,7 +79,16 @@ Create these fields before the first live upload. The API fails closed if ShareP
 
 1. Deploy the background worker privately and set its token.
 2. Add the Photo Intake environment values to the existing Next/Vercel deployment.
-3. Confirm the Inventory field internal names and Product Photos drive ID.
+3. Add and verify the photo and ResaleIQ Inventory fields, then confirm the Product Photos drive ID.
 4. Deploy the web API.
 5. Build the Expo app and enter the server URL plus Photo Intake connection key.
 6. Test with one low-risk SKU and two photos before processing a full album.
+
+## Operator capture standard
+
+After photographing, put the item in its permanent bin/shelf and enter that
+location. Use one batch per physical item. Capture front, back, interior,
+brand/material label, serial/date code or chip area when applicable, hardware,
+corners/edges, measurements, and every flaw. A group haul photo is sourcing
+evidence only. Missing proof remains visible as the next action instead of being
+filled with a guess.

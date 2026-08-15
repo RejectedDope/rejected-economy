@@ -7,6 +7,7 @@
     "next-env.d.ts",
     "app/api/photo-intake/**/*.ts",
     "lib/photo-intake/**/*.ts",
+    "lib/resaleiq-intake/**/*.ts",
     "tests/photo-intake/**/*.ts"
   ],
   "exclude": ["node_modules"]

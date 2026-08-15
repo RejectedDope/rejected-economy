@@ -3,11 +3,13 @@ import { z } from "zod";
 import { assertPhotoIntakeRequest, getPhotoIntakeConfig } from "@/lib/photo-intake/config";
 import {
   ensureDriveFolder,
+  updateInventoryDisplayFields,
   updateInventoryPhotoFields,
   uploadDriveFile,
 } from "@/lib/photo-intake/graph";
 import { verifyBatchClaims } from "@/lib/photo-intake/naming";
 import { batchPaths } from "@/lib/photo-intake/paths";
+import { startResaleIqEvaluation } from "@/lib/resaleiq-intake/evaluator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +34,7 @@ export async function POST(
     if (claims.batchId !== batchId) throw new Error("Batch identifier does not match token.");
 
     const paths = batchPaths(claims.sku, claims.batchId);
-    const status = body.failedCount > 0 ? "Needs Review" : "Listing Ready";
+    const status = body.failedCount > 0 ? "Needs Review" : "Processed";
     const [originalFolder, listingReadyFolder] = await Promise.all([
       ensureDriveFolder(config, paths.originals),
       ensureDriveFolder(config, paths.listingReady),
@@ -66,7 +68,35 @@ export async function POST(
       PhotoError: body.failedCount ? `${body.failedCount} photo(s) require review.` : "",
     });
 
-    return NextResponse.json({ ok: true, status, manifestUrl: manifestResult.webUrl });
+    let researchStatus = body.failedCount > 0 ? "Blocked - Photo Review" : "Pending";
+    let researchRunId: string | undefined;
+    if (body.failedCount === 0) {
+      try {
+        const research = await startResaleIqEvaluation(config, {
+          inventoryItemId: claims.inventoryItemId,
+          sku: claims.sku,
+          listingReadyFolder: paths.listingReady,
+        });
+        researchStatus = research.status === "completed" ? "Ready to Finalize" : "Running";
+        researchRunId = research.id;
+      } catch (error) {
+        researchStatus = config.openAiApiKey ? "Needs Review" : "Configuration Required";
+        console.error("Unable to start ResaleIQ intake evaluation", error);
+      }
+    }
+
+    await updateInventoryDisplayFields(config, claims.inventoryItemId, {
+      Status: "Needs Research",
+      "Research Status": researchStatus,
+      "Research Run ID": researchRunId ?? "",
+      "Next Action": body.failedCount > 0
+        ? "Review failed photos, collect missing product views, then rerun ResaleIQ."
+        : researchRunId
+          ? "ResaleIQ is identifying the item, researching sold evidence, pricing, marketplace fit, and missing proof."
+          : "Configure ResaleIQ, then run the evidence-backed inventory evaluation.",
+    });
+
+    return NextResponse.json({ ok: true, status, researchStatus, researchRunId, manifestUrl: manifestResult.webUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to complete photo intake.";
     const status = message === "Unauthorized" ? 401 : 400;

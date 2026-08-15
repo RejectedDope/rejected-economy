@@ -19,6 +19,12 @@ type GraphColumn = {
   hidden?: boolean;
 };
 
+type DriveImage = {
+  name: string;
+  mimeType: string;
+  bytes: Uint8Array;
+};
+
 async function getGraphToken(config: PhotoIntakeConfig): Promise<string> {
   const body = new URLSearchParams({
     client_id: config.clientId,
@@ -242,4 +248,71 @@ export async function updateInventoryPhotoFields(
     const detail = await response.text();
     throw new Error(`Inventory photo update failed (${response.status}): ${detail.slice(0, 300)}`);
   }
+}
+
+async function inventoryColumns(config: PhotoIntakeConfig): Promise<GraphColumn[]> {
+  const columns = await graphJson<GraphListResponse<GraphColumn>>(
+    config,
+    `/sites/${config.siteId}/lists/${config.inventoryListId}/columns?$select=name,displayName,hidden`
+  );
+  return columns.value?.filter((column) => !column.hidden) ?? [];
+}
+
+export async function updateInventoryDisplayFields(
+  config: PhotoIntakeConfig,
+  inventoryItemId: string,
+  displayFields: Record<string, unknown>
+): Promise<void> {
+  const columns = await inventoryColumns(config);
+  const fields: Record<string, unknown> = {};
+  for (const [displayName, value] of Object.entries(displayFields)) {
+    const column = columns.find(
+      (candidate) => candidate.displayName.toLowerCase() === displayName.toLowerCase()
+    );
+    if (column && value !== undefined) fields[column.name] = value;
+  }
+  if (!Object.keys(fields).length) return;
+  await updateInventoryPhotoFields(config, inventoryItemId, fields);
+}
+
+export async function getInventoryItem(
+  config: PhotoIntakeConfig,
+  inventoryItemId: string
+): Promise<InventoryMatch> {
+  return graphJson<InventoryMatch>(
+    config,
+    `/sites/${config.siteId}/lists/${config.inventoryListId}/items/${inventoryItemId}?$expand=fields`
+  );
+}
+
+export async function listDriveFolderImages(
+  config: PhotoIntakeConfig,
+  folderPath: string,
+  limit = 12
+): Promise<DriveImage[]> {
+  const folder = await getDriveItemByPath(config, folderPath);
+  if (!folder) return [];
+  const children = await graphJson<GraphListResponse<{
+    id: string;
+    name: string;
+    file?: { mimeType?: string };
+  }>>(
+    config,
+    `/drives/${config.productPhotosDriveId}/items/${folder.id}/children?$select=id,name,file&$top=${limit}`
+  );
+  const files = (children.value ?? []).filter((item) => item.file).slice(0, limit);
+  const images: DriveImage[] = [];
+  for (const file of files) {
+    const response = await graphRequest(
+      config,
+      `/drives/${config.productPhotosDriveId}/items/${file.id}/content`
+    );
+    if (!response.ok) continue;
+    images.push({
+      name: file.name,
+      mimeType: file.file?.mimeType || "image/jpeg",
+      bytes: new Uint8Array(await response.arrayBuffer()),
+    });
+  }
+  return images;
 }

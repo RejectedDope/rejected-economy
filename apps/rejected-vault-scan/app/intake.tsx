@@ -117,8 +117,8 @@ export default function IntakeScreen() {
         onProgress: setProgress,
       });
       Alert.alert(
-        result.failures ? 'Batch needs review' : 'Listing photos ready',
-        `${targetSku}\n${result.batchId}\n${result.status}${result.failures ? ` — ${result.failures} failed` : ''}`,
+        result.failures ? 'Batch needs review' : 'Photos processed; research started',
+        `${targetSku}\n${result.batchId}\nPhotos: ${result.status}\nResaleIQ: ${result.researchStatus}${result.failures ? `\n${result.failures} photo(s) failed` : ''}`,
         [{ text: 'Done', onPress: () => router.back() }]
       );
     } catch (error) {

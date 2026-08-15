@@ -6,6 +6,7 @@
   "include": [
     "next-env.d.ts",
     "app/api/photo-intake/**/*.ts",
+    "app/api/cron/resaleiq-intake/**/*.ts",
     "lib/photo-intake/**/*.ts",
     "lib/resaleiq-intake/**/*.ts",
     "tests/photo-intake/**/*.ts"

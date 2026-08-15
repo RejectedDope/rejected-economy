@@ -316,3 +316,27 @@ export async function listDriveFolderImages(
   }
   return images;
 }
+
+export async function listRunningResaleIqRuns(
+  config: PhotoIntakeConfig,
+  limit = 5
+): Promise<Array<{ inventoryItemId: string; responseId: string; sku: string; batchId: string }>> {
+  const columns = await inventoryColumns(config);
+  const internalName = (displayName: string) => columns.find(
+    (column) => column.displayName.toLowerCase() === displayName.toLowerCase()
+  )?.name;
+  const response = await graphJson<GraphListResponse<InventoryMatch>>(
+    config,
+    `/sites/${config.siteId}/lists/${config.inventoryListId}/items?$expand=fields&$top=200`
+  );
+  const value = (fields: Record<string, unknown>, displayName: string, fallback: string) =>
+    fields[internalName(displayName) ?? fallback] ?? fields[fallback];
+  return (response.value ?? []).flatMap((item) => {
+    const status = String(value(item.fields, "Research Status", "ResearchStatus") ?? "");
+    const responseId = String(value(item.fields, "Research Run ID", "ResearchRunID") ?? "");
+    const sku = String(value(item.fields, "SKU", "SKU") ?? "");
+    const batchId = String(value(item.fields, "Photo Batch ID", "PhotoBatchID") ?? "");
+    if (!["Running", "Ready to Finalize"].includes(status) || !responseId || !sku || !batchId) return [];
+    return [{ inventoryItemId: item.id, responseId, sku, batchId }];
+  }).slice(0, limit);
+}

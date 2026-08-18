@@ -64,10 +64,13 @@ The complete evaluation is preserved as
 identification limits, evidence URLs, market range, strategy, missing proof,
 profitability limitations, drafts, decision, and next action.
 
-The phone checks a new research run briefly after upload. The authenticated
-`/api/cron/resaleiq-intake` queue sweep then revisits longer-running jobs every
-15 minutes and writes their final result, so the operator does not need to keep
-the app open.
+The phone checks a new research run briefly after upload through
+`/api/photo-intake/research/status`. Longer-running jobs remain durable because
+the response ID is stored on the canonical SharePoint Inventory row. The
+`/api/cron/resaleiq-intake` fallback sweep runs once daily so the project remains
+compatible with the Vercel Hobby plan. If more frequent unattended finalization
+is later required, the same authenticated endpoint can be called by an approved
+external scheduler without changing the inventory architecture.
 
 Create these fields before the first live upload. The API fails closed if SharePoint rejects a write; it does not silently create a second record.
 

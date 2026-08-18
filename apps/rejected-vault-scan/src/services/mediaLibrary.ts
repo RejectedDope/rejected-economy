@@ -1,6 +1,6 @@
 import * as MediaLibrary from 'expo-media-library';
 import { Linking, Platform } from 'react-native';
-import type { AlbumSummary } from '@/src/types/media';
+import type { AlbumSummary, PhotoAsset } from '@/src/types/media';
 
 export type PermissionState = {
   granted: boolean;
@@ -49,7 +49,7 @@ export async function loadAlbums(): Promise<AlbumSummary[]> {
           album,
           first: 1,
           mediaType: ['photo'],
-          sortBy: [[MediaLibrary.SortBy.creationTime, false]],
+          sortBy: [['creationTime', false]],
         });
         thumbnailUri = assets.assets[0]?.uri;
 
@@ -74,4 +74,38 @@ export async function loadAlbums(): Promise<AlbumSummary[]> {
   return summaries
     .filter((album) => album.assetCount > 0 || Boolean(album.thumbnailUri))
     .sort((a, b) => b.assetCount - a.assetCount || a.title.localeCompare(b.title));
+}
+
+export async function loadAlbumPhotos(albumId: string, first = 100): Promise<PhotoAsset[]> {
+  const result = await MediaLibrary.getAssetsAsync({
+    album: albumId,
+    first,
+    mediaType: ['photo'],
+    sortBy: [['creationTime', false]],
+  });
+  return result.assets.map((asset) => ({
+    id: asset.id,
+    uri: asset.uri,
+    filename: asset.filename,
+    mediaType: asset.mediaType,
+    width: asset.width,
+    height: asset.height,
+  }));
+}
+
+export async function resolveOriginalAsset(assetId: string): Promise<{
+  uri: string;
+  filename: string;
+  mimeType: string;
+}> {
+  const info = await MediaLibrary.getAssetInfoAsync(assetId, { shouldDownloadFromNetwork: true });
+  const uri = info.localUri ?? info.uri;
+  const filename = info.filename || `photo-${assetId}.jpg`;
+  const extension = filename.split('.').pop()?.toLowerCase();
+  const mimeType = extension === 'heic' || extension === 'heif'
+    ? 'image/heic'
+    : extension === 'png'
+      ? 'image/png'
+      : 'image/jpeg';
+  return { uri, filename, mimeType };
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { AlbumCard } from '@/src/components/AlbumCard';
 import {
   getPermissionState,
@@ -12,6 +13,7 @@ import {
 import type { AlbumSummary } from '@/src/types/media';
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [permission, setPermission] = useState<PermissionState | null>(null);
   const [albums, setAlbums] = useState<AlbumSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,11 +34,14 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const initialRefresh = setTimeout(() => void refresh(), 0);
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void refresh();
     });
-    return () => subscription.remove();
+    return () => {
+      clearTimeout(initialRefresh);
+      subscription.remove();
+    };
   }, [refresh]);
 
   const connect = async () => {
@@ -86,10 +91,10 @@ export default function HomeScreen() {
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>REJECTED VAULT SCAN</Text>
           <Text style={styles.headline}>Find what you already own.</Text>
-          <Text style={styles.body}>Connect the albums you authorize. Phase 1 reads your real iPhone albums directly—no individual uploads and no listing automation.</Text>
+          <Text style={styles.body}>Connect the albums you authorize, choose one existing SKU, and send a photo batch into the Rejected Treasures listing workflow.</Text>
           <View style={styles.notice}>
             <Text style={styles.noticeTitle}>Private first step</Text>
-            <Text style={styles.noticeBody}>This test only checks permission, album names, visible photo counts, and thumbnails. It does not send your photos anywhere.</Text>
+            <Text style={styles.noticeBody}>Nothing uploads until you choose an album, select photos, enter an existing SKU, and confirm the batch.</Text>
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable style={styles.primary} onPress={() => void connect()}>
@@ -105,7 +110,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>PHASE 1 DEVICE TEST</Text>
+        <Text style={styles.eyebrow}>PHOTO INTAKE</Text>
         <Text style={styles.headlineSmall}>Your authorized albums</Text>
         <Text style={styles.body}>
           {limited
@@ -139,7 +144,12 @@ export default function HomeScreen() {
       <FlatList
         data={albums}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <AlbumCard album={item} />}
+        renderItem={({ item }) => (
+          <AlbumCard
+            album={item}
+            onPress={() => router.push({ pathname: '/intake', params: { albumId: item.id, title: item.title } })}
+          />
+        )}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         ListEmptyComponent={

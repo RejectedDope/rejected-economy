@@ -14,11 +14,12 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
       [
         "expo-media-library",
         {
           "photosPermission": "Allow Rejected Vault Scan to review the photos and albums you choose for possible resale inventory.",
-          "savePhotosPermission": "Allow Rejected Vault Scan to save exported reports to your photo library.",
+          "savePhotosPermission": "Allow Rejected Vault Scan to save approved listing-ready images to your photo library.",
           "isAccessMediaLocationEnabled": false
         }
       ]

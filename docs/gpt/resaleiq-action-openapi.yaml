@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: ResaleIQ Intelligence API
+  version: 1.0.0
+  description: Live resale research tools for ResaleIQ. Active marketplace evidence must never be represented as sold evidence.
+servers:
+  - url: https://YOUR-RESALEIQ-DOMAIN.com
+paths:
+  /api/resale/research:
+    post:
+      operationId: researchResaleMarket
+      summary: Research current marketplace supply for an item
+      description: Searches current active eBay listings and returns normalized evidence and price distribution. This operation does not return completed sold comps and the agent must not describe active asking prices as realized sales.
+      x-openai-isConsequential: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: A precise search query based only on verified or clearly qualified item attributes.
+                  minLength: 2
+                  maxLength: 300
+                categoryId:
+                  type: string
+                  description: Optional eBay category ID when known.
+                condition:
+                  type: string
+                  description: Optional visible or user-provided condition context.
+                marketplaceId:
+                  type: string
+                  default: EBAY_US
+                  description: eBay marketplace identifier.
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 50
+                  default: 20
+      responses:
+        "200":
+          description: Normalized marketplace evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  marketplaceId:
+                    type: string
+                  researchedAt:
+                    type: string
+                    format: date-time
+                  evidence:
+                    type: object
+                    properties:
+                      activeSupply:
+                        type: object
+                        properties:
+                          source:
+                            type: string
+                          countReturned:
+                            type: integer
+                          totalMatching:
+                            type: integer
+                            nullable: true
+                          priceDistribution:
+                            type: object
+                            nullable: true
+                          items:
+                            type: array
+                            items:
+                              type: object
+                      soldEvidence:
+                        type: object
+                        properties:
+                          available:
+                            type: boolean
+                          items:
+                            type: array
+                            items:
+                              type: object
+                          note:
+                            type: string
+                  interpretationRules:
+                    type: array
+                    items:
+                      type: string
+        "400":
+          description: Invalid request
+        "500":
+          description: Server configuration or processing error
+        "502":
+          description: Upstream marketplace research error

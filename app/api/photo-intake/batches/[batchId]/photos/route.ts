@@ -10,7 +10,11 @@ import {
   type PhotoRole,
 } from "@/lib/photo-intake/naming";
 import { batchPaths } from "@/lib/photo-intake/paths";
-import { createListingDerivative, removeBackground } from "@/lib/photo-intake/processor";
+import {
+  createListingDerivative,
+  createPreviewListingDerivative,
+  removeBackground,
+} from "@/lib/photo-intake/processor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +55,7 @@ export async function POST(
       throw new Error("One of the selected photos is too large to process.");
     }
 
+    const previewBytes = new Uint8Array(await preview.arrayBuffer());
     const paths = batchPaths(claims.sku, claims.batchId);
     const originalName = originalFileName(claims.sku, role, sequence, extensionFor(original));
     const originalResult = await uploadDriveFile(
@@ -62,20 +67,41 @@ export async function POST(
     );
 
     try {
-      const transparent = await removeBackground(config, new Uint8Array(await preview.arrayBuffer()));
-      const derivative = await createListingDerivative(transparent);
-      const transparentResult = await uploadDriveFile(
-        config,
-        paths.listingReady,
-        transparentFileName(claims.sku, role, sequence),
-        derivative.transparentPng,
-        "image/png"
-      );
+      let listingJpeg: Uint8Array;
+      let transparentUrl: string | undefined;
+      let backgroundRemovalApplied = false;
+      let processingWarning: string | undefined;
+
+      if (config.backgroundRemovalUrl) {
+        try {
+          const transparent = await removeBackground(config, previewBytes);
+          const derivative = await createListingDerivative(transparent);
+          listingJpeg = derivative.listingJpeg;
+          const transparentResult = await uploadDriveFile(
+            config,
+            paths.listingReady,
+            transparentFileName(claims.sku, role, sequence),
+            derivative.transparentPng,
+            "image/png"
+          );
+          transparentUrl = transparentResult.webUrl;
+          backgroundRemovalApplied = true;
+        } catch (backgroundError) {
+          processingWarning = backgroundError instanceof Error
+            ? `${backgroundError.message} Used the original preview for the listing derivative.`
+            : "Background removal failed. Used the original preview for the listing derivative.";
+          listingJpeg = await createPreviewListingDerivative(previewBytes);
+        }
+      } else {
+        processingWarning = "Background removal worker is not configured; used the original preview for the listing derivative.";
+        listingJpeg = await createPreviewListingDerivative(previewBytes);
+      }
+
       const listingResult = await uploadDriveFile(
         config,
         paths.listingReady,
         listingFileName(claims.sku, role, sequence),
-        derivative.listingJpeg,
+        listingJpeg,
         "image/jpeg"
       );
 
@@ -85,7 +111,9 @@ export async function POST(
         role,
         originalUrl: originalResult.webUrl,
         listingUrl: listingResult.webUrl,
-        transparentUrl: transparentResult.webUrl,
+        transparentUrl,
+        backgroundRemovalApplied,
+        processingWarning,
       });
     } catch (processingError) {
       const message = processingError instanceof Error ? processingError.message : "Processing failed.";
@@ -93,7 +121,7 @@ export async function POST(
         config,
         paths.needsReview,
         `${claims.sku}_${String(sequence).padStart(2, "0")}_preview.jpg`,
-        new Uint8Array(await preview.arrayBuffer()),
+        previewBytes,
         preview.type || "image/jpeg"
       );
       await uploadDriveFile(

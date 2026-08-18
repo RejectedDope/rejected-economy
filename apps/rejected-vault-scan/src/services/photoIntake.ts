@@ -4,6 +4,7 @@ import { resolveOriginalAsset } from './mediaLibrary';
 import type { PhotoAsset } from '@/src/types/media';
 
 const KEY_NAME = 'rejected-photo-intake-key';
+const DEFAULT_API_BASE = 'https://rejected-economy.vercel.app';
 
 type BatchStart = {
   batchId: string;
@@ -26,8 +27,7 @@ export type InventoryDraft = {
 };
 
 function apiUrl(path: string): string {
-  const base = process.env.EXPO_PUBLIC_PHOTO_INTAKE_API_URL?.replace(/\/$/, '');
-  if (!base) throw new Error('Photo Intake server URL is not configured in this build.');
+  const base = (process.env.EXPO_PUBLIC_PHOTO_INTAKE_API_URL?.trim() || DEFAULT_API_BASE).replace(/\/$/, '');
   return `${base}${path}`;
 }
 

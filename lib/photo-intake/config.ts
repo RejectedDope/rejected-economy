@@ -6,7 +6,7 @@ export type PhotoIntakeConfig = {
   siteId: string;
   inventoryListId: string;
   productPhotosDriveId: string;
-  backgroundRemovalUrl: string;
+  backgroundRemovalUrl?: string;
   backgroundRemovalToken?: string;
   openAiApiKey?: string;
   resaleIqModel: string;
@@ -27,7 +27,7 @@ export function getPhotoIntakeConfig(): PhotoIntakeConfig {
     siteId: required("SHAREPOINT_SITE_ID"),
     inventoryListId: required("SHAREPOINT_INVENTORY_LIST_ID"),
     productPhotosDriveId: required("SHAREPOINT_PRODUCT_PHOTOS_DRIVE_ID"),
-    backgroundRemovalUrl: required("BACKGROUND_REMOVAL_API_URL"),
+    backgroundRemovalUrl: process.env.BACKGROUND_REMOVAL_API_URL?.trim() || undefined,
     backgroundRemovalToken: process.env.BACKGROUND_REMOVAL_API_TOKEN?.trim(),
     openAiApiKey: process.env.OPENAI_API_KEY?.trim(),
     resaleIqModel: process.env.RESALEIQ_RESEARCH_MODEL?.trim() || "gpt-5.6",
